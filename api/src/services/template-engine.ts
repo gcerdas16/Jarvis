@@ -1,6 +1,4 @@
 interface TemplateVars {
-  companyName?: string | null;
-  email?: string | null;
   industry?: string | null;
   companyType?: string | null;
   description?: string | null;

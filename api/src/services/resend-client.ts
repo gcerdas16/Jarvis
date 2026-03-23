@@ -14,7 +14,6 @@ export async function sendEmail(params: SendEmailParams): Promise<string | null>
 
   try {
     const replyTo = process.env.REPLY_TO_EMAIL || "gustavocerdas@gcwarecr.com";
-    console.log(`[Resend] Sending to ${params.to} | from: ${fromAddress} | replyTo: ${replyTo}`);
 
     const { data, error } = await resend.emails.send({
       from: fromAddress,

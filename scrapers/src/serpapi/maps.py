@@ -42,7 +42,7 @@ def search_places(query: str, num_results: int = 10) -> list[dict]:
             "title": place.get("title", ""),
             "address": place.get("address", ""),
             "phone": place.get("phone", ""),
-            "website": website,
+            "website": place.get("website", ""),
             "rating": place.get("rating"),
             "rating_count": place.get("ratingCount"),
         })

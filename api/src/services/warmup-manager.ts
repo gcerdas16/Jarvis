@@ -1,6 +1,6 @@
 import { prisma } from "../utils/db";
 
-const DAILY_LIMIT = parseInt(process.env.DAILY_EMAIL_LIMIT || "30");
+const DAILY_LIMIT = parseInt(process.env.DAILY_EMAIL_LIMIT || "50");
 
 export async function getWarmupState() {
   let state = await prisma.warmupState.findFirst();
@@ -41,6 +41,6 @@ export async function incrementSentCount(): Promise<void> {
   const state = await getWarmupState();
   await prisma.warmupState.update({
     where: { id: state.id },
-    data: { emailsSentToday: state.emailsSentToday + 1 },
+    data: { emailsSentToday: { increment: 1 } },
   });
 }

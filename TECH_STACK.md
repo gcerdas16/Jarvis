@@ -1,7 +1,7 @@
 # Outreach Engine — Technical Stack
 
 **Date:** 2026-03-20
-**Updated:** 2026-03-22
+**Updated:** 2026-03-23
 **Status:** Active
 **Version:** 2.0
 **Based on:** PROJECT_PLAN.md v1.0
@@ -157,7 +157,6 @@ External Monitoring:
 - `express` — HTTP server
 - `resend` — envío de emails (cliente activo)
 - `@aws-sdk/client-ses` — envío de emails (backup)
-- `@aws-sdk/client-sns` — notificaciones de bounces/respuestas (futuro)
 - `prisma` + `@prisma/client` — ORM
 - `node-cron` — job scheduling (emails 8:05am CR, follow-ups 10am CR, lunes a viernes)
 - `zod` — validación de inputs en la API
@@ -170,7 +169,7 @@ External Monitoring:
 **Search strategy (Serper.dev):**
 - **Organic search** — busca keywords por industria, devuelve URLs de empresas
 - **Maps/Places** — busca negocios con dirección, teléfono, website
-- **Keyword bank** — 30 industrias × ~6-7 keywords = ~195 keywords en DB con rotación automática
+- **Keyword bank** — 30 industrias × ~6-7 keywords = 183 keywords en DB con rotación automática
 
 **Extraction strategy (Crawl4AI + AI):**
 - **Site Visitor** — visita URLs de Serper, extrae markdown con Playwright
@@ -182,7 +181,6 @@ External Monitoring:
 - `crawl4ai` — motor de scraping (visitar sitios, Playwright)
 - `requests` — llamadas a Serper.dev API
 - `asyncpg` — conexión directa a PostgreSQL
-- `pydantic` — validación de datos scrapeados
 - `anthropic` — cliente de Anthropic para Claude Haiku extraction
 - `python-dotenv` — carga de variables de entorno
 
@@ -298,9 +296,6 @@ API_PORT=3001
 NODE_ENV=development
 RESEND_API_KEY=re_xxxxx
 REPLY_TO_EMAIL=gustavocerdas@gcwarecr.com
-AWS_ACCESS_KEY_ID=xxxxx
-AWS_SECRET_ACCESS_KEY=xxxxx
-AWS_REGION=us-east-1
 NOTIFICATION_EMAIL=gcerdas16@gmail.com
 OUTREACH_DOMAIN=gcwarecr.com
 DAILY_EMAIL_LIMIT=50
@@ -358,7 +353,9 @@ outreach-engine/
 │   ├── Dockerfile               # Python 3.13 + Playwright/Chromium
 │   ├── run_daily.py             # Pipeline diario ACTIVO (Serper → visit → extract)
 │   ├── run_solidaristas.py      # Búsqueda enfocada en solidaristas
-│   ├── seed_keywords.py         # Seed de 30 industrias × ~195 keywords
+│   ├── seed_keywords.py         # Seed: carga industrias desde data/industries.json
+│   ├── data/
+│   │   └── industries.json      # 30 industrias × 183 keywords
 │   ├── main.py                  # LEGACY — pipeline Crawl4AI directo
 │   ├── test_*.py                # 4 test scripts
 │   ├── requirements.txt

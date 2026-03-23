@@ -152,7 +152,7 @@ Un sistema automatizado end-to-end que:
 - [x] Sistema de deduplicación (check por email antes de insertar)
 - [x] Pipeline diario de scraping (`run_daily.py` con keyword rotation)
 - [x] Almacenamiento de datos scrapeados con contexto (nombre empresa, industria, fuente via AI extraction)
-- [x] Keyword bank con 30 industrias y ~195 keywords (`seed_keywords.py`)
+- [x] Keyword bank con 30 industrias y 183 keywords (`seed_keywords.py` + `data/industries.json`)
 - [x] Sistema de URLs visitadas para evitar re-scraping (90/120 días)
 
 **Cambios vs plan original:** Se reemplazó Google Custom Search API por Serper.dev (organic + maps). LinkedIn no se implementó como fuente. Se agregó un sistema de keyword bank con rotación automática y búsqueda por industria. `run_daily.py` reemplazó a `main.py` como pipeline principal.

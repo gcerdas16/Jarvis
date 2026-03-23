@@ -49,7 +49,9 @@ outreach-engine/
 │   ├── Dockerfile               # Python 3.13 + Playwright/Chromium para Railway
 │   ├── run_daily.py             # Pipeline diario ACTIVO (Serper → visit → extract)
 │   ├── run_solidaristas.py      # Búsqueda enfocada solidaristas
-│   ├── seed_keywords.py         # Seed: 30 industrias × ~195 keywords
+│   ├── seed_keywords.py         # Seed: carga industrias desde data/industries.json
+│   ├── data/
+│   │   └── industries.json      # 30 industrias × 183 keywords
 │   ├── main.py                  # LEGACY — pipeline Crawl4AI directo
 │   ├── test_*.py                # 4 test scripts
 │   ├── requirements.txt
@@ -140,7 +142,7 @@ outreach-engine/
 ## Scraper Rules
 - **Active pipeline:** `run_daily.py` — uses Serper.dev for search + Crawl4AI SiteVisitor for extraction
 - **Legacy pipeline:** `main.py` — uses Crawl4AI directory crawlers directly (not actively used)
-- Serper.dev for search: organic + maps, keyword rotation from DB (30 industries, ~195 keywords)
+- Serper.dev for search: organic + maps, keyword rotation from DB (30 industries, 183 keywords)
 - Crawl4AI SiteVisitor for visiting URLs and extracting emails + AI context
 - AI extraction (Claude Haiku) only for sites where emails are found — extracts company context
 - Always check deduplication before inserting a new prospect
@@ -180,7 +182,7 @@ ANTHROPIC_API_KEY           # Claude Haiku for AI extraction
 - **Remote:** origin → main
 
 ## Known Issues
-- `serpapi/maps.py:45` — bug: `"website": website` references undefined variable, should be `place.get("website", "")`
+- No known issues at this time
 
 ## What NOT to do
 - Don't hardcode URLs, secrets, or API keys — use environment variables

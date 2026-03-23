@@ -33,4 +33,4 @@ RUN playwright install chromium
 
 COPY . .
 
-CMD ["python", "run_daily.py"]
+CMD ["python", "scheduler.py"]

@@ -49,6 +49,158 @@ async def update_keyword_after_search(pool, keyword_id: str, page: int) -> None:
     )
 
 
+async def select_keywords(pool) -> tuple[list[dict], set[str]]:
+    """Select today's keywords and return them with their industries."""
+    keywords = await get_daily_keywords(pool)
+    if not keywords:
+        print("[Daily] No keywords available")
+        return [], set()
+
+    industries = {kw["industry_label"] for kw in keywords}
+    print(f"\n[Step 1] {len(keywords)} keywords seleccionados")
+    print(f"  Industrias: {', '.join(sorted(industries))}")
+    return keywords, industries
+
+
+async def run_organic_search(pool, keywords: list[dict]) -> tuple[list[str], set[str]]:
+    """Run Google organic search for each keyword. Returns all_urls and seen_urls."""
+    print("\n[Step 2] Google Search — resultados orgánicos")
+    all_urls: list[str] = []
+    seen_urls: set[str] = set()
+
+    for kw in keywords:
+        page = kw["current_page"]
+        print(f"\n  [{kw['industry']}] '{kw['keyword']}' (página {page})")
+
+        results = search_google(kw["keyword"], num_results=10, page=page)
+        new_count = 0
+        for r in results:
+            if r["link"] not in seen_urls:
+                seen_urls.add(r["link"])
+                all_urls.append(r["link"])
+                new_count += 1
+
+        print(f"    → {len(results)} resultados ({new_count} nuevos)")
+
+        await log_search_job(
+            pool, kw["id"], "organic", page,
+            len(results), new_count,
+        )
+        await update_keyword_after_search(pool, kw["id"], page)
+
+    print(f"\n  Total URLs orgánicas únicas: {len(all_urls)}")
+    return all_urls, seen_urls
+
+
+async def run_maps_search(
+    pool, keywords: list[dict], all_urls: list[str], seen_urls: set[str],
+) -> list[dict]:
+    """Run Google Maps search for each keyword. Appends websites to all_urls."""
+    print("\n[Step 3] Google Maps — lugares con contacto")
+    all_places: list[dict] = []
+    seen_titles: set[str] = set()
+
+    for kw in keywords:
+        places = search_places(kw["keyword"], num_results=10)
+        new_count = 0
+        for p in places:
+            key = p["title"].lower().strip()
+            if key and key not in seen_titles:
+                seen_titles.add(key)
+                all_places.append(p)
+                new_count += 1
+
+                website = p.get("website", "")
+                if website and website not in seen_urls:
+                    seen_urls.add(website)
+                    all_urls.append(website)
+
+        if places:
+            print(f"  [{kw['industry']}] '{kw['keyword']}' → {len(places)} places ({new_count} new)")
+
+        await log_search_job(
+            pool, kw["id"], "maps", 1,
+            len(places), new_count,
+        )
+
+    print(f"\n  Total lugares únicos: {len(all_places)}")
+    print(f"  Total URLs combinadas: {len(all_urls)}")
+    return all_places
+
+
+async def ensure_sources(pool) -> tuple[str, str]:
+    """Ensure serper_search and serper_maps sources exist. Returns their IDs."""
+    source_ids = {}
+    for source_name, source_type in [("serper_search", "google"), ("serper_maps", "maps")]:
+        row = await pool.fetchrow(
+            "SELECT id FROM sources WHERE name = $1", source_name
+        )
+        if not row:
+            row = await pool.fetchrow(
+                """INSERT INTO sources (id, name, type, is_active, created_at, updated_at)
+                VALUES (gen_random_uuid()::text, $1, $2, true, NOW(), NOW())
+                RETURNING id""",
+                source_name, source_type,
+            )
+        source_ids[source_name] = row["id"]
+
+    return source_ids["serper_search"], source_ids["serper_maps"]
+
+
+async def insert_maps_prospects(pool, all_places: list[dict], maps_source_id: str) -> int:
+    """Save Maps-only prospects (have phone but no website). Returns count of new."""
+    maps_new = 0
+    for place in all_places:
+        phone = place.get("phone", "")
+        website = place.get("website", "")
+        if phone and not website:
+            inserted = await insert_prospect(
+                pool,
+                email=f"maps_{phone.replace(' ', '').replace('-', '')}@placeholder.local",
+                company_name=place["title"],
+                website=None,
+                industry=None,
+                company_type=None,
+                description=f"Tel: {phone} | Dir: {place.get('address', '')}",
+                source_id=maps_source_id,
+            )
+            if inserted:
+                maps_new += 1
+
+    if maps_new:
+        print(f"\n[Maps] Prospects solo teléfono guardados: {maps_new}")
+    return maps_new
+
+
+async def visit_and_extract(pool, fresh_urls: list[str], search_source_id: str) -> None:
+    """Visit fresh URLs and extract emails + company context."""
+    if not fresh_urls:
+        print("\n[Step 7] No hay URLs nuevas para visitar")
+        return
+
+    print(f"\n[Step 7] Visitando {len(fresh_urls)} URLs nuevas...")
+    visitor = SiteVisitor(source_id=search_source_id, pool=pool)
+    result = await visitor.visit_and_extract(fresh_urls)
+
+    print(f"\n{'=' * 60}")
+    print(f"[Resultado] Emails encontrados: {result['found']}")
+    print(f"[Resultado] Nuevos prospects: {result['new']}")
+    print(f"[Resultado] Duración visitas: {result['duration_ms']}ms")
+
+
+async def print_summary(pool, fresh_urls_count: int) -> None:
+    """Print daily scraper summary."""
+    row = await pool.fetchrow("SELECT COUNT(*) as count FROM prospects")
+    total_keywords_searched = await pool.fetchval(
+        "SELECT COUNT(*) FROM search_jobs WHERE searched_at > NOW() - interval '1 day'"
+    )
+    print(f"\n{'=' * 60}")
+    print(f"[Resumen] Keywords buscados hoy: {total_keywords_searched}")
+    print(f"[Resumen] URLs nuevas visitadas: {fresh_urls_count}")
+    print(f"[Resumen] Total prospects en DB: {row['count']}")
+    print("=" * 60)
+
+
 async def main():
     print("=" * 60)
     print("[Daily Scraper] Iniciando búsqueda diaria")
@@ -57,79 +209,13 @@ async def main():
     pool = await get_pool()
 
     try:
-        # ── Step 1: Pick today's keywords ──
-        keywords = await get_daily_keywords(pool)
+        keywords, _ = await select_keywords(pool)
         if not keywords:
-            print("[Daily] No keywords available")
             return
 
-        industries_today = set()
-        for kw in keywords:
-            industries_today.add(kw["industry_label"])
+        all_urls, seen_urls = await run_organic_search(pool, keywords)
+        all_places = await run_maps_search(pool, keywords, all_urls, seen_urls)
 
-        print(f"\n[Step 1] {len(keywords)} keywords seleccionados")
-        print(f"  Industrias: {', '.join(sorted(industries_today))}")
-
-        # ── Step 2: Search Google (organic) for each keyword ──
-        print(f"\n[Step 2] Google Search — resultados orgánicos")
-        all_urls: list[str] = []
-        seen_urls: set[str] = set()
-
-        for kw in keywords:
-            page = kw["current_page"]
-            print(f"\n  [{kw['industry']}] '{kw['keyword']}' (página {page})")
-
-            results = search_google(kw["keyword"], num_results=10, page=page)
-            new_count = 0
-            for r in results:
-                if r["link"] not in seen_urls:
-                    seen_urls.add(r["link"])
-                    all_urls.append(r["link"])
-                    new_count += 1
-
-            print(f"    → {len(results)} resultados ({new_count} nuevos)")
-
-            await log_search_job(
-                pool, kw["id"], "organic", page,
-                len(results), new_count,
-            )
-            await update_keyword_after_search(pool, kw["id"], page)
-
-        print(f"\n  Total URLs orgánicas únicas: {len(all_urls)}")
-
-        # ── Step 3: Google Maps for each keyword ──
-        print(f"\n[Step 3] Google Maps — lugares con contacto")
-        all_places: list[dict] = []
-        seen_titles: set[str] = set()
-
-        for kw in keywords:
-            places = search_places(kw["keyword"], num_results=10)
-            new_count = 0
-            for p in places:
-                key = p["title"].lower().strip()
-                if key and key not in seen_titles:
-                    seen_titles.add(key)
-                    all_places.append(p)
-                    new_count += 1
-
-                    # Add website to URL list if available
-                    website = p.get("website", "")
-                    if website and website not in seen_urls:
-                        seen_urls.add(website)
-                        all_urls.append(website)
-
-            if places:
-                print(f"  [{kw['industry']}] '{kw['keyword']}' → {len(places)} places ({new_count} new)")
-
-            await log_search_job(
-                pool, kw["id"], "maps", 1,
-                len(places), new_count,
-            )
-
-        print(f"\n  Total lugares únicos: {len(all_places)}")
-        print(f"  Total URLs combinadas: {len(all_urls)}")
-
-        # ── Step 4: Filter already visited URLs ──
         fresh_urls = await filter_unvisited_urls(pool, all_urls)
         skipped = len(all_urls) - len(fresh_urls)
         print(f"\n[Step 4] Filtro de URLs visitadas")
@@ -137,71 +223,10 @@ async def main():
         print(f"  Ya visitadas: {skipped}")
         print(f"  Por visitar: {len(fresh_urls)}")
 
-        # ── Step 5: Ensure sources exist ──
-        for source_name, source_type in [("serper_search", "google"), ("serper_maps", "maps")]:
-            row = await pool.fetchrow(
-                "SELECT id FROM sources WHERE name = $1", source_name
-            )
-            if not row:
-                await pool.execute(
-                    """INSERT INTO sources (id, name, type, is_active, created_at, updated_at)
-                    VALUES (gen_random_uuid()::text, $1, $2, true, NOW(), NOW())""",
-                    source_name, source_type,
-                )
-
-        # ── Step 6: Save Maps-only prospects (phone, no website) ──
-        maps_source = await pool.fetchrow(
-            "SELECT id FROM sources WHERE name = 'serper_maps'"
-        )
-        maps_source_id = maps_source["id"]
-        maps_new = 0
-
-        for place in all_places:
-            phone = place.get("phone", "")
-            website = place.get("website", "")
-            if phone and not website:
-                inserted = await insert_prospect(
-                    pool,
-                    email=f"maps_{phone.replace(' ', '').replace('-', '')}@placeholder.local",
-                    company_name=place["title"],
-                    website=None,
-                    industry=None,
-                    company_type=None,
-                    description=f"Tel: {phone} | Dir: {place.get('address', '')}",
-                    source_id=maps_source_id,
-                )
-                if inserted:
-                    maps_new += 1
-
-        if maps_new:
-            print(f"\n[Maps] Prospects solo teléfono guardados: {maps_new}")
-
-        # ── Step 7: Visit fresh URLs and extract emails ──
-        if fresh_urls:
-            print(f"\n[Step 7] Visitando {len(fresh_urls)} URLs nuevas...")
-            search_source = await pool.fetchrow(
-                "SELECT id FROM sources WHERE name = 'serper_search'"
-            )
-            visitor = SiteVisitor(source_id=search_source["id"], pool=pool)
-            result = await visitor.visit_and_extract(fresh_urls)
-
-            print(f"\n{'=' * 60}")
-            print(f"[Resultado] Emails encontrados: {result['found']}")
-            print(f"[Resultado] Nuevos prospects: {result['new']}")
-            print(f"[Resultado] Duración visitas: {result['duration_ms']}ms")
-        else:
-            print("\n[Step 7] No hay URLs nuevas para visitar")
-
-        # ── Summary ──
-        row = await pool.fetchrow("SELECT COUNT(*) as count FROM prospects")
-        total_keywords_searched = await pool.fetchval(
-            "SELECT COUNT(*) FROM search_jobs WHERE searched_at > NOW() - interval '1 day'"
-        )
-        print(f"\n{'=' * 60}")
-        print(f"[Resumen] Keywords buscados hoy: {total_keywords_searched}")
-        print(f"[Resumen] URLs nuevas visitadas: {len(fresh_urls)}")
-        print(f"[Resumen] Total prospects en DB: {row['count']}")
-        print("=" * 60)
+        search_source_id, maps_source_id = await ensure_sources(pool)
+        await insert_maps_prospects(pool, all_places, maps_source_id)
+        await visit_and_extract(pool, fresh_urls, search_source_id)
+        await print_summary(pool, len(fresh_urls))
 
     finally:
         await pool.close()

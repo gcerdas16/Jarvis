@@ -51,11 +51,7 @@ export async function processEmailQueue(): Promise<void> {
       description: prospect.description,
     });
 
-    const subject = renderTemplate(activeCampaign.subjectLine, {
-      companyName: prospect.companyName,
-      email: prospect.email,
-      industry: prospect.industry,
-    });
+    const subject = activeCampaign.subjectLine.replace(/[\n\r]/g, "").trim();
 
     const messageId = await sendEmail({
       to: prospect.email,
@@ -131,7 +127,7 @@ export async function processFollowUps(): Promise<void> {
 
       const messageId = await sendEmail({
         to: prospect.email,
-        subject: `Re: ${activeCampaign.subjectLine}`,
+        subject: `Re: ${activeCampaign.subjectLine.replace(/[\n\r]/g, "").trim()}`,
         body,
       });
 
@@ -141,7 +137,7 @@ export async function processFollowUps(): Promise<void> {
             prospectId: prospect.id,
             campaignId: activeCampaign.id,
             emailType: config.emailType,
-            subject: `Re: ${activeCampaign.subjectLine}`,
+            subject: `Re: ${activeCampaign.subjectLine.replace(/[\n\r]/g, "").trim()}`,
             body,
             sesMessageId: messageId,
           },

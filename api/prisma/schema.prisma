@@ -1,0 +1,276 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// SOURCES — where prospects are discovered
+// ============================================
+model Source {
+  id        String   @id @default(cuid())
+  name      String   @unique // e.g., "directorioscostarica.com", "google_search", "linkedin"
+  type      String   // "directory", "google", "linkedin", "solidarista", "manual"
+  baseUrl   String?  @map("base_url")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  prospects  Prospect[]
+  scrapeLogs ScrapeLog[]
+
+  @@map("sources")
+}
+
+// ============================================
+// PROSPECTS — companies/contacts discovered
+// ============================================
+model Prospect {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  companyName  String?         @map("company_name")
+  website      String?
+  industry     String?
+  companyType  String?         @map("company_type") // "solidarista", "pyme", "corporacion", etc.
+  description  String?         // what the company does (AI extracted)
+  country      String          @default("CR")
+  status       ProspectStatus  @default(NEW)
+  sourceId     String          @map("source_id")
+  source       Source          @relation(fields: [sourceId], references: [id])
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  emailsSent   EmailSent[]
+  responses    Response[]
+
+  @@index([status])
+  @@index([sourceId])
+  @@index([companyType])
+  @@map("prospects")
+}
+
+enum ProspectStatus {
+  NEW           // just scraped, not contacted yet
+  QUEUED        // in the email queue
+  CONTACTED     // first email sent
+  FOLLOW_UP_1   // first follow-up sent
+  FOLLOW_UP_2   // second follow-up sent
+  FOLLOW_UP_3   // third follow-up sent
+  RESPONDED     // prospect replied
+  UNSUBSCRIBED  // prospect asked to stop
+  BOUNCED       // email bounced
+}
+
+// ============================================
+// CAMPAIGNS — email templates/strategies
+// ============================================
+model Campaign {
+  id            String   @id @default(cuid())
+  name          String   // e.g., "Solidaristas Q1", "PYMEs General"
+  subjectLine   String   @map("subject_line")
+  bodyTemplate  String   @map("body_template") // supports {{companyName}}, {{industry}} etc.
+  followUp1     String?  @map("follow_up_1")
+  followUp2     String?  @map("follow_up_2")
+  followUp3     String?  @map("follow_up_3")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  emailsSent EmailSent[]
+
+  @@map("campaigns")
+}
+
+// ============================================
+// EMAILS SENT — track every email dispatched
+// ============================================
+model EmailSent {
+  id          String       @id @default(cuid())
+  prospectId  String       @map("prospect_id")
+  prospect    Prospect     @relation(fields: [prospectId], references: [id])
+  campaignId  String       @map("campaign_id")
+  campaign    Campaign     @relation(fields: [campaignId], references: [id])
+  emailType   EmailType    @map("email_type")
+  subject     String
+  body        String
+  sesMessageId String?     @map("ses_message_id") // AWS SES message ID for tracking
+  sentAt      DateTime     @default(now()) @map("sent_at")
+
+  events EmailEvent[]
+
+  @@index([prospectId])
+  @@index([campaignId])
+  @@index([sentAt])
+  @@map("emails_sent")
+}
+
+enum EmailType {
+  INITIAL
+  FOLLOW_UP_1
+  FOLLOW_UP_2
+  FOLLOW_UP_3
+}
+
+// ============================================
+// EMAIL EVENTS — opens, clicks, bounces
+// ============================================
+model EmailEvent {
+  id          String         @id @default(cuid())
+  emailSentId String         @map("email_sent_id")
+  emailSent   EmailSent      @relation(fields: [emailSentId], references: [id])
+  eventType   EmailEventType @map("event_type")
+  metadata    String?        // JSON string with extra event data
+  occurredAt  DateTime       @default(now()) @map("occurred_at")
+
+  @@index([emailSentId])
+  @@index([eventType])
+  @@map("email_events")
+}
+
+enum EmailEventType {
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+}
+
+// ============================================
+// RESPONSES — when prospects reply
+// ============================================
+model Response {
+  id          String   @id @default(cuid())
+  prospectId  String   @map("prospect_id")
+  prospect    Prospect @relation(fields: [prospectId], references: [id])
+  subject     String?
+  bodyPreview String?  @map("body_preview") // first 500 chars of the response
+  receivedAt  DateTime @default(now()) @map("received_at")
+  notified    Boolean  @default(false) // whether Gustavo was notified
+
+  @@index([prospectId])
+  @@map("responses")
+}
+
+// ============================================
+// UNSUBSCRIBES — permanent opt-out list
+// ============================================
+model Unsubscribe {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  reason    String?  // optional: why they unsubscribed
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("unsubscribes")
+}
+
+// ============================================
+// SCRAPE LOGS — track scraper activity
+// ============================================
+model ScrapeLog {
+  id             String      @id @default(cuid())
+  sourceId       String      @map("source_id")
+  source         Source      @relation(fields: [sourceId], references: [id])
+  status         ScrapeStatus
+  prospectsFound Int         @default(0) @map("prospects_found")
+  prospectsNew   Int         @default(0) @map("prospects_new") // after deduplication
+  errorMessage   String?     @map("error_message")
+  durationMs     Int?        @map("duration_ms")
+  startedAt      DateTime    @default(now()) @map("started_at")
+  finishedAt     DateTime?   @map("finished_at")
+
+  @@index([sourceId])
+  @@index([startedAt])
+  @@map("scrape_logs")
+}
+
+enum ScrapeStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+// ============================================
+// INDUSTRY CATEGORIES — organized keyword groups
+// ============================================
+model IndustryCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique // e.g., "odontologia", "arquitectura"
+  label     String   // display name: "Odontología", "Arquitectura"
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  keywords  SearchKeyword[]
+
+  @@map("industry_categories")
+}
+
+// ============================================
+// SEARCH KEYWORDS — the keyword bank
+// ============================================
+model SearchKeyword {
+  id             String           @id @default(cuid())
+  keyword        String           @unique
+  industryId     String           @map("industry_id")
+  industry       IndustryCategory @relation(fields: [industryId], references: [id])
+  currentPage    Int              @default(1) @map("current_page") // next page to search
+  maxPage        Int              @default(5) @map("max_page")
+  lastSearchedAt DateTime?        @map("last_searched_at")
+  isActive       Boolean          @default(true) @map("is_active")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  searchJobs SearchJob[]
+
+  @@index([industryId])
+  @@index([lastSearchedAt])
+  @@map("search_keywords")
+}
+
+// ============================================
+// SEARCH JOBS — log of every search performed
+// ============================================
+model SearchJob {
+  id            String        @id @default(cuid())
+  keywordId     String        @map("keyword_id")
+  keyword       SearchKeyword @relation(fields: [keywordId], references: [id])
+  searchType    String        @map("search_type") // "organic" or "maps"
+  page          Int           @default(1)
+  resultsCount  Int           @default(0) @map("results_count")
+  newUrlsCount  Int           @default(0) @map("new_urls_count")
+  provider      String        @default("serper") // "serper", "serpapi", etc.
+  searchedAt    DateTime      @default(now()) @map("searched_at")
+
+  @@index([keywordId])
+  @@index([searchedAt])
+  @@map("search_jobs")
+}
+
+// ============================================
+// VISITED URLS — avoid re-scraping same sites
+// ============================================
+model VisitedUrl {
+  id            String   @id @default(cuid())
+  url           String   @unique
+  foundEmails   Boolean  @default(false) @map("found_emails")
+  visitedAt     DateTime @default(now()) @map("visited_at")
+  revisitAfter  DateTime @map("revisit_after") // 90 days if found emails, 120 if not
+
+  @@index([revisitAfter])
+  @@map("visited_urls")
+}
+
+// ============================================
+// WARMUP STATE — track email warmup progress
+// ============================================
+model WarmupState {
+  id               String   @id @default(cuid())
+  currentDailyLimit Int     @default(5) @map("current_daily_limit")
+  maxDailyLimit    Int      @default(30) @map("max_daily_limit")
+  emailsSentToday  Int      @default(0) @map("emails_sent_today")
+  lastResetDate    DateTime @default(now()) @map("last_reset_date")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("warmup_state")
+}

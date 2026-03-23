@@ -160,7 +160,7 @@ Un sistema automatizado end-to-end que:
 ### Phase 3: Sistema de Email — Parcial 🔶
 **Deliverables:**
 - [x] Integración con Resend (cliente activo) y AWS SES (backup)
-- [x] Sistema de warm-up gradual (+2 emails/día hasta DAILY_EMAIL_LIMIT)
+- [x] Sistema de límite diario (50 emails/día, sin warm-up gradual)
 - [x] Templates de email personalizables por segmento ({{companyName}}, {{industry}}, etc.)
 - [x] Cola de envío con rate limiting (mínimo 30s entre emails)
 - [x] Sistema de follow-ups automáticos (3 follow-ups: 3, 5, 7 días)
@@ -168,7 +168,7 @@ Un sistema automatizado end-to-end que:
 - [ ] Tracking de aperturas (pixel tracking) — no implementado
 - [ ] Manejo de bounces via webhooks — no implementado (schema listo, sin handler)
 
-**Cambios vs plan original:** Se cambió AWS SES por Resend como email service principal. Scheduler implementado con node-cron (emails 8am CR, follow-ups 10am CR, lunes a viernes).
+**Cambios vs plan original:** Se cambió AWS SES por Resend como email service principal. Scheduler implementado con node-cron (emails 8:05am CR, follow-ups 10am CR, lunes a viernes). Warm-up gradual eliminado — envía 50 emails/día desde día 1. Campaña "Una consulta rápida" creada y seeded con body + 2 follow-ups + firma HTML GCWARE.
 
 ### Phase 4: Detección de Respuestas y Notificaciones — Parcial 🔶
 **Deliverables:**
@@ -186,7 +186,7 @@ Un sistema automatizado end-to-end que:
 - [ ] Desglose por industria/tipo — endpoint existe, falta UI
 - [ ] Tabla de prospectos recientes — endpoint existe, falta UI
 - [ ] Gráficos de tendencia diaria — endpoint existe, falta UI
-- [ ] Deploy en Railway — pendiente
+- [x] Deploy en Railway — deployado como static site con Caddy
 
 ---
 
@@ -200,7 +200,7 @@ Un sistema automatizado end-to-end que:
 | Baja tasa de respuesta (< 1%) | Media | Medio | Iterar sobre contenido de emails, segmentar mejor, A/B testing futuro |
 | Datos scrapeados de baja calidad (emails inválidos) | Media | Medio | Validación implementada: regex, TLD cleaning, blacklists, dominios inválidos |
 | Serper.dev llega al límite mensual (2,500 free) | Media | Medio | Keyword rotation prioriza menos buscados, visited_urls evita re-trabajo |
-| Secrets en .env commiteados en el repo | Alta | Alto | ⚠️ ACTUAL — scrapers/.env y api/.env tienen API keys reales. Mover a Railway env vars y agregar a .gitignore |
+| Secrets en .env commiteados en el repo | Baja | Alto | ✅ RESUELTO — .gitignore excluye .env, secrets solo en Railway dashboard |
 | Ley 8968 — queja formal de un prospecto | Baja | Alto | Unsubscribe funcional, solo datos públicos, transparencia en el email |
 
 ---
@@ -210,9 +210,9 @@ Un sistema automatizado end-to-end que:
 Items que necesitan resolución antes o durante el desarrollo:
 
 - [x] **Tech stack exacto** — definido en TECH_STACK.md v2.0
-- [ ] **Contenido de los emails** — redactar el email inicial y los follow-ups para cada segmento
+- [x] **Contenido de los emails** — campaña "Una consulta rápida" creada con body + 2 follow-ups
 - [x] **Gmail de notificaciones** — gcerdas16@gmail.com
-- [x] **Horarios de envío** — lunes a viernes, emails a las 8am CR, follow-ups a las 10am CR
+- [x] **Horarios de envío** — lunes a viernes, emails a las 8:05am CR, follow-ups a las 10am CR
 - [x] **Criterios de filtrado** — implementado en email_extractor.py: blacklisted patterns (noreply, admin, etc.), blacklisted domains, TLD validation, mínimo 3 caracteres en local part
 - [x] **Cadencia de follow-ups** — follow-up 1 a los 3 días, follow-up 2 a los 5 días, follow-up 3 a los 7 días
 - [x] **Credenciales AWS** — configuradas en api/.env
@@ -254,4 +254,4 @@ Items que necesitan resolución antes o durante el desarrollo:
 ---
 
 *Generated with Project Planner Skill — 2026-03-20*
-*Last synced: 2026-03-22*
+*Last synced: 2026-03-23*

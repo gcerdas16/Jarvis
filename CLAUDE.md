@@ -27,13 +27,16 @@ outreach-engine/
 │   │   │   └── campaigns.ts     # GET, POST, PATCH /api/campaigns
 │   │   ├── services/
 │   │   │   ├── resend-client.ts     # Email client ACTIVO
-│   │   │   ├── ses-client.ts        # Email client BACKUP
+│   │   │   ├── ses-client.ts        # Email client BACKUP (no se usa en prod)
 │   │   │   ├── email-engine.ts      # Cola de envío + follow-ups
-│   │   │   ├── warmup-manager.ts    # Warm-up gradual
-│   │   │   ├── template-engine.ts   # Variables + unsubscribe text
-│   │   │   └── notification-service.ts  # Alerta a Gmail
+│   │   │   ├── warmup-manager.ts    # Límite diario fijo (sin warm-up gradual)
+│   │   │   ├── template-engine.ts   # Firma GCWARE + unsubscribe text
+│   │   │   └── notification-service.ts  # Alerta a Gmail via Resend
+│   │   ├── scripts/
+│   │   │   ├── seed-campaign.ts # Seedea campaña activa en BD
+│   │   │   └── send-test.ts    # Envía email de prueba
 │   │   ├── jobs/
-│   │   │   └── scheduler.ts    # Cron: emails 8am, follow-ups 10am (L-V)
+│   │   │   └── scheduler.ts    # Cron: emails 8:05am, follow-ups 10am (L-V)
 │   │   └── utils/
 │   │       └── db.ts           # PrismaClient singleton
 │   ├── prisma/
@@ -42,6 +45,8 @@ outreach-engine/
 │   └── package.json
 │
 ├── scrapers/                    # Python + Crawl4AI + Serper.dev
+│   ├── scheduler.py             # Scheduler: corre run_daily a las 7:42 AM CR (L-V)
+│   ├── Dockerfile               # Python 3.13 + Playwright/Chromium para Railway
 │   ├── run_daily.py             # Pipeline diario ACTIVO (Serper → visit → extract)
 │   ├── run_solidaristas.py      # Búsqueda enfocada solidaristas
 │   ├── seed_keywords.py         # Seed: 30 industrias × ~195 keywords
@@ -122,15 +127,15 @@ outreach-engine/
 
 ## Email Engine Rules
 - Email client activo: **Resend** (`resend-client.ts`). AWS SES existe como backup (`ses-client.ts`)
-- NEVER exceed `DAILY_EMAIL_LIMIT` environment variable (default: 30)
-- Warm-up: start at 5 emails/day, increase by 2 per day until reaching limit
+- NEVER exceed `DAILY_EMAIL_LIMIT` environment variable (default: 50)
+- No warm-up — envía el límite completo desde día 1
 - All emails sent from `OUTREACH_DOMAIN` (gcwarecr.com)
 - Every email MUST include unsubscribe text at the bottom (added by template-engine.ts)
 - Stop all follow-ups immediately when a prospect responds
 - Check unsubscribe list before EVERY send
 - Rate limit: minimum 30 seconds between emails
 - Follow-up cadence: 3 days → 5 days → 7 days
-- Schedule: emails at 8am CR, follow-ups at 10am CR, Monday-Friday only
+- Schedule: emails at 8:05am CR, follow-ups at 10am CR, Monday-Friday only
 
 ## Scraper Rules
 - **Active pipeline:** `run_daily.py` — uses Serper.dev for search + Crawl4AI SiteVisitor for extraction
@@ -152,12 +157,9 @@ API_PORT                    # API port (default: 3001)
 NODE_ENV                    # development | production
 RESEND_API_KEY              # Resend API key for email sending
 REPLY_TO_EMAIL              # Reply-to address (gustavocerdas@gcwarecr.com)
-AWS_ACCESS_KEY_ID           # AWS credentials (backup SES + notifications)
-AWS_SECRET_ACCESS_KEY       # AWS credentials (backup SES + notifications)
-AWS_REGION                  # AWS region (us-east-1)
 NOTIFICATION_EMAIL          # Gmail for response alerts (gcerdas16@gmail.com)
 OUTREACH_DOMAIN             # Email sending domain (gcwarecr.com)
-DAILY_EMAIL_LIMIT           # Max emails per day (default: 30)
+DAILY_EMAIL_LIMIT           # Max emails per day (default: 50)
 ```
 
 **Scrapers (scrapers/.env):**
@@ -173,12 +175,12 @@ ANTHROPIC_API_KEY           # Claude Haiku for AI extraction
 - Never push directly to `main` — use pull requests
 - GitHub Actions runs lint + type check before merge
 
+## Git Repository
+- **Repo:** github.com/gcerdas16/Jarvis.git
+- **Remote:** origin → main
+
 ## Known Issues
 - `serpapi/maps.py:45` — bug: `"website": website` references undefined variable, should be `place.get("website", "")`
-- `requirements.txt` — missing `requests` package (used by `serpapi/search.py` and `serpapi/maps.py`)
-- `.env.example` — not updated with `SERPER_API_KEY`, `RESEND_API_KEY`, `REPLY_TO_EMAIL`
-- `notification-service.ts` — imports from `ses-client` but active email client is `resend-client`
-- `scrapers/.env` and `api/.env` have real API keys committed — should be in .gitignore
 
 ## What NOT to do
 - Don't hardcode URLs, secrets, or API keys — use environment variables

@@ -20,7 +20,7 @@
 | Email Service | Resend | Email client activo para envío de cold emails y follow-ups. AWS SES existe como backup |
 | AI Extraction | Claude Haiku (Anthropic API) | Extracción de contexto de páginas web, bajo costo (~$0.001/página), buena calidad en español |
 | Search | Serper.dev (Google Search + Maps) | Organic search + Maps/Places, 2,500 queries/mes gratis, resultados de calidad para CR |
-| Job Scheduling | node-cron + PostgreSQL | Sin dependencias extra, suficiente para 30 emails/día y scraping recurrente |
+| Job Scheduling | node-cron (API) + Python scheduler (scrapers) | node-cron para emails/follow-ups, Python zoneinfo scheduler para scrapers |
 | Charts | Tremor | Diseñado para dashboards de métricas, integra con Tailwind |
 | Hosting | Railway | Deploy fácil con git push, PostgreSQL incluido, buena DX |
 | CI/CD | GitHub + GitHub Actions | Lint + type check antes del deploy, 2,000 min/mes gratis |
@@ -159,7 +159,7 @@ External Monitoring:
 - `@aws-sdk/client-ses` — envío de emails (backup)
 - `@aws-sdk/client-sns` — notificaciones de bounces/respuestas (futuro)
 - `prisma` + `@prisma/client` — ORM
-- `node-cron` — job scheduling (emails 8am CR, follow-ups 10am CR, lunes a viernes)
+- `node-cron` — job scheduling (emails 8:05am CR, follow-ups 10am CR, lunes a viernes)
 - `zod` — validación de inputs en la API
 - `cors` — permitir requests del frontend
 
@@ -180,14 +180,18 @@ External Monitoring:
 
 **Key packages/libraries:**
 - `crawl4ai` — motor de scraping (visitar sitios, Playwright)
-- `requests` — llamadas a Serper.dev API (⚠️ falta en requirements.txt)
+- `requests` — llamadas a Serper.dev API
 - `asyncpg` — conexión directa a PostgreSQL
 - `pydantic` — validación de datos scrapeados
 - `anthropic` — cliente de Anthropic para Claude Haiku extraction
 - `python-dotenv` — carga de variables de entorno
 
+**Deployment:**
+- `Dockerfile` — Python 3.13-slim + Playwright/Chromium para Railway
+- `scheduler.py` — Scheduler con zoneinfo (7:42 AM CR, L-V), long-running process
+- `PYTHONUNBUFFERED=1` — fuerza flush de logs en Docker/Railway
+
 **Legacy (aún en el código pero no se usan activamente):**
-- `google-api-python-client` — Google Custom Search API (reemplazado por Serper.dev)
 - `main.py` — pipeline original con Crawl4AI directo (reemplazado por `run_daily.py`)
 - Directory crawlers (`directorio_cr_crawler.py`, `pymes_crawler.py`, etc.) — usados por main.py
 
@@ -272,7 +276,7 @@ External Monitoring:
 | Schema desincronizado entre Prisma (Node.js) y Python | Queries de Python fallan silenciosamente | Prisma es fuente de verdad; Python usa las mismas tablas |
 | Crawl4AI consume muchos recursos en Railway | Costos suben, servicio se vuelve lento | Rate limiting en scrapers, usar Serper para búsqueda (sin Playwright) |
 | Serper.dev llega al límite mensual (2,500 free) | Se detiene el descubrimiento de nuevas empresas | Keyword rotation prioriza los menos buscados, visited_urls evita re-trabajo |
-| API keys expuestas en .env commiteados | Cargos no autorizados | ⚠️ ACTUAL: scrapers/.env y api/.env tienen secrets commiteados. Mover a Railway env vars |
+| API keys expuestas en .env commiteados | Cargos no autorizados | ✅ RESUELTO: .gitignore excluye .env, secrets en Railway dashboard |
 | Railway cold starts en worker services | Scrapers tardan en arrancar | Configurar mínimo 1 replica siempre activa |
 
 ---
@@ -299,7 +303,7 @@ AWS_SECRET_ACCESS_KEY=xxxxx
 AWS_REGION=us-east-1
 NOTIFICATION_EMAIL=gcerdas16@gmail.com
 OUTREACH_DOMAIN=gcwarecr.com
-DAILY_EMAIL_LIMIT=30
+DAILY_EMAIL_LIMIT=50
 ```
 
 **Scrapers (scrapers/.env):**
@@ -307,12 +311,10 @@ DAILY_EMAIL_LIMIT=30
 DATABASE_URL=postgresql://...
 SERPER_API_KEY=xxxxx
 ANTHROPIC_API_KEY=sk-ant-xxxxx
-GOOGLE_CSE_API_KEY=xxxxx  # legacy, not actively used
-GOOGLE_CSE_ID=xxxxx       # legacy, not actively used
 ```
 
 ### Getting Started
-1. Clone the repo: `git clone <repo-url>`
+1. Clone the repo: `git clone https://github.com/gcerdas16/Jarvis.git`
 2. Install Node.js dependencies: `cd api && npm install`
 3. Install Python dependencies: `cd scrapers && pip install -r requirements.txt && crawl4ai-setup`
 4. Setup database: `cd api && npx prisma migrate dev`
@@ -336,11 +338,14 @@ outreach-engine/
 │   │   │   ├── resend-client.ts     # Email client ACTIVO (Resend)
 │   │   │   ├── ses-client.ts        # Email client BACKUP (AWS SES)
 │   │   │   ├── email-engine.ts      # Cola de envío + follow-ups automáticos
-│   │   │   ├── warmup-manager.ts    # Warm-up gradual (+2/día)
-│   │   │   ├── template-engine.ts   # Variables {{companyName}} etc + unsubscribe
-│   │   │   └── notification-service.ts  # Notifica a Gmail cuando hay respuesta
+│   │   │   ├── warmup-manager.ts    # Límite diario fijo (sin warm-up)
+│   │   │   ├── template-engine.ts   # Firma HTML GCWARE + unsubscribe
+│   │   │   └── notification-service.ts  # Notifica a Gmail via Resend
+│   │   ├── scripts/
+│   │   │   ├── seed-campaign.ts # Seedea campaña activa
+│   │   │   └── send-test.ts    # Email de prueba
 │   │   ├── jobs/
-│   │   │   └── scheduler.ts    # Cron: emails 8am CR, follow-ups 10am CR (L-V)
+│   │   │   └── scheduler.ts    # Cron: emails 8:05am CR, follow-ups 10am CR (L-V)
 │   │   └── utils/
 │   │       └── db.ts           # PrismaClient singleton
 │   ├── prisma/
@@ -349,6 +354,8 @@ outreach-engine/
 │   └── package.json
 │
 ├── scrapers/                    # Python + Crawl4AI + Serper.dev
+│   ├── scheduler.py             # Scheduler: 7:42 AM CR (L-V)
+│   ├── Dockerfile               # Python 3.13 + Playwright/Chromium
 │   ├── run_daily.py             # Pipeline diario ACTIVO (Serper → visit → extract)
 │   ├── run_solidaristas.py      # Búsqueda enfocada en solidaristas
 │   ├── seed_keywords.py         # Seed de 30 industrias × ~195 keywords
@@ -409,4 +416,4 @@ outreach-engine/
 
 ---
 
-*Last synced: 2026-03-22*
+*Last synced: 2026-03-23*

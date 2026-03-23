@@ -6,7 +6,7 @@ const CR_TIMEZONE = "America/Costa_Rica";
 export function startScheduler(): void {
   console.log("[Scheduler] Starting cron jobs...");
 
-  cron.schedule("42 7 * * 1-5", async () => {
+  cron.schedule("5 8 * * 1-5", async () => {
     console.log("[Scheduler] Running email queue...");
     try {
       await processEmailQueue();
@@ -25,6 +25,6 @@ export function startScheduler(): void {
   }, { timezone: CR_TIMEZONE });
 
   console.log("[Scheduler] Cron jobs scheduled (America/Costa_Rica):");
-  console.log("  - Email queue: Mon-Fri at 7:42 AM CR");
+  console.log("  - Email queue: Mon-Fri at 8:05 AM CR");
   console.log("  - Follow-ups:  Mon-Fri at 10:00 AM CR");
 }

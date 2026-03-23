@@ -1,4 +1,4 @@
-"""Scheduler: runs run_daily.py at 7:35 AM Costa Rica time, Mon-Fri."""
+"""Scheduler: runs run_daily.py at 7:42 AM Costa Rica time, Mon-Fri."""
 import asyncio
 import time
 from datetime import datetime
@@ -8,7 +8,7 @@ from run_daily import main as run_daily_main
 
 CR_TZ = ZoneInfo("America/Costa_Rica")
 RUN_HOUR = 7
-RUN_MINUTE = 35
+RUN_MINUTE = 42
 
 
 def main():

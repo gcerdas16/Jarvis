@@ -1,23 +1,21 @@
 import { Routes, Route } from "react-router-dom";
-import DashboardPage from "./pages/DashboardPage";
+import { Layout } from "./components/layout/Layout";
+import OverviewPage from "./pages/OverviewPage";
+import ScrapersPage from "./pages/ScrapersPage";
+import EmailsPage from "./pages/EmailsPage";
+import JobsPage from "./pages/JobsPage";
+import ProspectsPage from "./pages/ProspectsPage";
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b bg-white px-6 py-4">
-        <h1 className="text-xl font-semibold text-gray-900">
-          Outreach Engine
-        </h1>
-        <p className="text-sm text-gray-500">
-          Sistema de prospección automatizado
-        </p>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        <Routes>
-          <Route path="/" element={<DashboardPage />} />
-        </Routes>
-      </main>
-    </div>
+    <Layout>
+      <Routes>
+        <Route path="/" element={<OverviewPage />} />
+        <Route path="/scrapers" element={<ScrapersPage />} />
+        <Route path="/emails" element={<EmailsPage />} />
+        <Route path="/jobs" element={<JobsPage />} />
+        <Route path="/prospects" element={<ProspectsPage />} />
+      </Routes>
+    </Layout>
   );
 }

@@ -40,9 +40,10 @@ export default function ProspectsPage() {
   }
 
   async function confirmBatch() {
+    const count = selected.size;
     await api.confirmBatch(Array.from(selected), todayISO());
     setSelected(new Set());
-    alert(`Batch confirmado: ${selected.size} prospectos para hoy`);
+    alert(`Batch confirmado: ${count} prospectos para hoy`);
   }
 
   const drawerProspect = prospects.find((p) => p.id === selectedId);

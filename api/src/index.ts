@@ -15,7 +15,10 @@ const PORT = process.env.API_PORT || 3001;
 app.use(cors());
 // Raw body needed for webhook signature verification
 app.use("/api/webhooks", express.raw({ type: "application/json" }), (req, _res, next) => {
-  if (Buffer.isBuffer(req.body)) req.body = JSON.parse(req.body.toString());
+  if (Buffer.isBuffer(req.body)) {
+    (req as any).rawBody = req.body;
+    req.body = JSON.parse(req.body.toString());
+  }
   next();
 });
 app.use(express.json());

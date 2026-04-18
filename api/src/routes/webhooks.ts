@@ -16,7 +16,7 @@ webhooksRouter.post("/resend", async (req: Request, res: Response) => {
   let payload: Record<string, unknown>;
 
   try {
-    payload = wh.verify(JSON.stringify(req.body), {
+    payload = wh.verify((req as any).rawBody ?? Buffer.from(JSON.stringify(req.body)), {
       "svix-id": req.headers["svix-id"] as string,
       "svix-timestamp": req.headers["svix-timestamp"] as string,
       "svix-signature": req.headers["svix-signature"] as string,

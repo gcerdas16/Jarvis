@@ -293,6 +293,7 @@ model JobRun {
 
   @@index([jobType])
   @@index([startedAt])
+  @@index([status])
   @@map("job_runs")
 }
 
@@ -315,7 +316,7 @@ enum JobRunStatus {
 model DailyBatch {
   id         String   @id @default(cuid())
   prospectId String   @map("prospect_id")
-  prospect   Prospect @relation(fields: [prospectId], references: [id])
+  prospect   Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
   batchDate  DateTime @map("batch_date")
   confirmed  Boolean  @default(false)
   createdAt  DateTime @default(now()) @map("created_at")

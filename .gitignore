@@ -42,3 +42,6 @@ coverage/
 .eggs/
 *.egg
 .crawl4ai/
+
+# Git worktrees
+.worktrees/

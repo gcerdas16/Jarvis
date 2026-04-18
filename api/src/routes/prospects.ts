@@ -10,6 +10,7 @@ const listQuerySchema = z.object({
   status: z.string().optional(),
   source: z.string().optional(),
   companyType: z.string().optional(),
+  search: z.string().optional(),
 });
 
 prospectsRouter.get("/", async (req, res) => {
@@ -21,6 +22,7 @@ prospectsRouter.get("/", async (req, res) => {
       ...(query.status && { status: query.status as any }),
       ...(query.source && { sourceId: query.source }),
       ...(query.companyType && { companyType: query.companyType }),
+      ...(query.search && { email: { contains: query.search, mode: "insensitive" as const } }),
     };
 
     const [prospects, total] = await Promise.all([
@@ -78,5 +80,36 @@ prospectsRouter.get("/:id", async (req, res) => {
     res.json({ success: true, data: prospect });
   } catch {
     res.status(500).json({ success: false, error: "Failed to fetch prospect" });
+  }
+});
+
+const batchSchema = z.object({
+  prospectIds: z.array(z.string()).min(1).max(100),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+prospectsRouter.patch("/batch", async (req, res) => {
+  try {
+    const { prospectIds, date } = batchSchema.parse(req.body);
+    const batchDate = new Date(date + "T00:00:00");
+    const batchDateEnd = new Date(date + "T23:59:59");
+
+    await prisma.dailyBatch.deleteMany({
+      where: { batchDate: { gte: batchDate, lte: batchDateEnd }, confirmed: false },
+    });
+
+    await prisma.$transaction(
+      prospectIds.map((prospectId) =>
+        prisma.dailyBatch.upsert({
+          where: { prospectId_batchDate: { prospectId, batchDate } },
+          create: { prospectId, batchDate, confirmed: true },
+          update: { confirmed: true },
+        })
+      )
+    );
+
+    res.json({ success: true, data: { confirmed: prospectIds.length, date } });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error instanceof z.ZodError ? error.errors[0].message : "Failed" });
   }
 });

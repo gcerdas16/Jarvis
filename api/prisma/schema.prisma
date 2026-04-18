@@ -38,6 +38,8 @@ model Prospect {
   description  String?         // what the company does (AI extracted)
   country      String          @default("CR")
   status       ProspectStatus  @default(NEW)
+  keyword      String?         @map("keyword")
+  searchType   String?         @map("search_type")
   sourceId     String          @map("source_id")
   source       Source          @relation(fields: [sourceId], references: [id])
   createdAt    DateTime        @default(now()) @map("created_at")
@@ -45,6 +47,7 @@ model Prospect {
 
   emailsSent   EmailSent[]
   responses    Response[]
+  dailyBatches DailyBatch[]
 
   @@index([status])
   @@index([sourceId])
@@ -273,4 +276,51 @@ model WarmupState {
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("warmup_state")
+}
+
+// ============================================
+// JOB RUNS — persist scheduler execution history
+// ============================================
+model JobRun {
+  id           String       @id @default(cuid())
+  jobType      JobType      @map("job_type")
+  status       JobRunStatus
+  result       String?
+  errorMessage String?      @map("error_message")
+  durationMs   Int?         @map("duration_ms")
+  startedAt    DateTime     @default(now()) @map("started_at")
+  finishedAt   DateTime?    @map("finished_at")
+
+  @@index([jobType])
+  @@index([startedAt])
+  @@map("job_runs")
+}
+
+enum JobType {
+  EMAIL_SEND
+  FOLLOW_UPS
+  SCRAPER
+}
+
+enum JobRunStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+// ============================================
+// DAILY BATCH — manual prospect selection
+// ============================================
+model DailyBatch {
+  id         String   @id @default(cuid())
+  prospectId String   @map("prospect_id")
+  prospect   Prospect @relation(fields: [prospectId], references: [id])
+  batchDate  DateTime @map("batch_date")
+  confirmed  Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([prospectId, batchDate])
+  @@index([batchDate])
+  @@map("daily_batches")
 }

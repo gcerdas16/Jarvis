@@ -12,10 +12,10 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function processEmailQueue(): Promise<void> {
+export async function processEmailQueue(): Promise<{ emailsSent: number; bounces: number }> {
   if (isProcessingQueue) {
     console.log("[EmailEngine] Queue already processing, skipping");
-    return;
+    return { emailsSent: 0, bounces: 0 };
   }
   isProcessingQueue = true;
   console.log("[EmailEngine] Processing queue...");
@@ -27,8 +27,10 @@ export async function processEmailQueue(): Promise<void> {
   if (!activeCampaign) {
     console.log("[EmailEngine] No active campaign found, skipping");
     isProcessingQueue = false;
-    return;
+    return { emailsSent: 0, bounces: 0 };
   }
+
+  let emailsSent = 0;
 
   try {
     const newProspects = await prisma.prospect.findMany({
@@ -78,6 +80,7 @@ export async function processEmailQueue(): Promise<void> {
             sesMessageId: messageId,
           },
         });
+        emailsSent++;
 
         await prisma.prospect.update({
           where: { id: prospect.id },
@@ -94,12 +97,14 @@ export async function processEmailQueue(): Promise<void> {
   } finally {
     isProcessingQueue = false;
   }
+
+  return { emailsSent, bounces: 0 };
 }
 
-export async function processFollowUps(): Promise<void> {
+export async function processFollowUps(): Promise<{ emailsSent: number }> {
   if (isProcessingFollowUps) {
     console.log("[EmailEngine] Follow-ups already processing, skipping");
-    return;
+    return { emailsSent: 0 };
   }
   isProcessingFollowUps = true;
   console.log("[EmailEngine] Processing follow-ups...");
@@ -110,8 +115,10 @@ export async function processFollowUps(): Promise<void> {
 
   if (!activeCampaign) {
     isProcessingFollowUps = false;
-    return;
+    return { emailsSent: 0 };
   }
+
+  let emailsSent = 0;
 
   try {
     const subject = `Re: ${activeCampaign.subjectLine.replace(/[\n\r]/g, "").trim()}`;
@@ -161,6 +168,7 @@ export async function processFollowUps(): Promise<void> {
               sesMessageId: messageId,
             },
           });
+          emailsSent++;
 
           await prisma.prospect.update({
             where: { id: prospect.id },
@@ -178,4 +186,6 @@ export async function processFollowUps(): Promise<void> {
   } finally {
     isProcessingFollowUps = false;
   }
+
+  return { emailsSent };
 }

@@ -34,6 +34,8 @@ emailsRouter.get("/", async (req, res) => {
     }
     if (q.status === "initial") where.emailType = "INITIAL";
     if (q.status === "followup") where.emailType = { in: ["FOLLOW_UP_1", "FOLLOW_UP_2", "FOLLOW_UP_3"] };
+    if (q.status === "bounced") where.prospect = { status: "BOUNCED" };
+    if (q.status === "replied") where.prospect = { status: "RESPONDED" };
 
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayEnd = new Date(today); todayEnd.setDate(todayEnd.getDate() + 1);

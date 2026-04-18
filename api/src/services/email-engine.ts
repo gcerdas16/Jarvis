@@ -33,10 +33,20 @@ export async function processEmailQueue(): Promise<{ emailsSent: number; bounces
   let emailsSent = 0;
 
   try {
-    const newProspects = await prisma.prospect.findMany({
-      where: { status: "NEW" },
-      take: 50,
+    // Check for confirmed manual batch for today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+
+    const confirmedBatch = await prisma.dailyBatch.findMany({
+      where: { batchDate: { gte: todayStart, lt: todayEnd }, confirmed: true },
+      include: { prospect: true },
     });
+
+    const newProspects = confirmedBatch.length > 0
+      ? confirmedBatch.map((b) => b.prospect).filter((p) => p.status === "NEW")
+      : await prisma.prospect.findMany({ where: { status: "NEW" }, take: 50 });
 
     const subject = activeCampaign.subjectLine.replace(/[\n\r]/g, "").trim();
 

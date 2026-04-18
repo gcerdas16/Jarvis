@@ -158,6 +158,7 @@ DATABASE_URL                # PostgreSQL connection string (Railway)
 API_PORT                    # API port (default: 3001)
 NODE_ENV                    # development | production
 RESEND_API_KEY              # Resend API key for email sending
+RESEND_WEBHOOK_SECRET       # From Resend dashboard → Webhooks → Signing secret
 REPLY_TO_EMAIL              # Reply-to address (gustavocerdas@gcwarecr.com)
 NOTIFICATION_EMAIL          # Gmail for response alerts (gcerdas16@gmail.com)
 OUTREACH_DOMAIN             # Email sending domain (gcwarecr.com)

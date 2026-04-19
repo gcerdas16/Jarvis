@@ -22,7 +22,7 @@ Open tracking is fundamentally unreliable in 2025:
 **What IS reliable:** click tracking, bounce detection, reply detection, unsubscribe.
 **Conclusion:** Don't show "open rate" as a primary metric. Show delivered/bounced/clicked/replied.
 
-## IMPORTANT: Rotate API Key
-The Resend API key `REDACTED_RESEND_KEY` was exposed in chat. User must rotate it at resend.com/api-keys.
+## IMPORTANT: New API Key Required
+The old Resend API key was exposed in chat and revoked. A new key must be generated at resend.com/api-keys and set as `RESEND_API_KEY` in Railway (api service).
 
 **How to apply:** When building the Emails section or webhook, remind user to rotate the key first. When displaying email metrics, de-emphasize opens, emphasize bounces/clicks/replies.

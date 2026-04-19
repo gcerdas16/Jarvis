@@ -18,6 +18,9 @@ build/
 # IDE
 .vscode/
 .idea/
+
+# Claude Code — local permissions (may contain secrets from approved commands)
+.claude/settings.local.json
 *.swp
 *.swo
 

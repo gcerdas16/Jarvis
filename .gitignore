@@ -9,6 +9,7 @@ venv/
 .env
 .env.local
 .env.production
+!dashboard/.env.production
 
 # Build
 dist/

@@ -11,6 +11,8 @@ const listQuerySchema = z.object({
   source: z.string().optional(),
   companyType: z.string().optional(),
   search: z.string().optional(),
+  sortBy: z.enum(["email", "companyName", "industry", "status", "updatedAt"]).default("updatedAt"),
+  sortDir: z.enum(["asc", "desc"]).default("desc"),
 });
 
 prospectsRouter.get("/", async (req, res) => {
@@ -29,7 +31,7 @@ prospectsRouter.get("/", async (req, res) => {
       prisma.prospect.findMany({
         where,
         include: { source: { select: { name: true, type: true } } },
-        orderBy: { createdAt: "desc" },
+        orderBy: { [query.sortBy]: query.sortDir },
         skip,
         take: query.limit,
       }),
@@ -66,7 +68,7 @@ prospectsRouter.get("/:id", async (req, res) => {
         source: true,
         emailsSent: {
           include: { events: true },
-          orderBy: { sentAt: "desc" },
+          orderBy: { sentAt: "asc" },
         },
         responses: { orderBy: { receivedAt: "desc" } },
       },

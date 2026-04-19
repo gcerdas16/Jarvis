@@ -1,24 +1,45 @@
 import { useEffect, useState } from "react";
-import { MagnifyingGlass, CaretRight } from "@phosphor-icons/react";
+import { MagnifyingGlass, CaretRight, CaretUp, CaretDown, ArrowLeft, ArrowRight } from "@phosphor-icons/react";
 import { api, ProspectItem } from "../lib/api";
 import { Badge } from "../components/ui/Badge";
 import { Drawer } from "../components/ui/Drawer";
 import { relativeTime, formatDate, todayISO } from "../lib/utils";
 
 const STATUS_OPTIONS = ["", "NEW", "CONTACTED", "FOLLOW_UP_1", "FOLLOW_UP_2", "FOLLOW_UP_3", "RESPONDED", "BOUNCED", "UNSUBSCRIBED"];
+const LIMIT = 25;
+
+type SortCol = "email" | "companyName" | "industry" | "status" | "updatedAt";
+
+function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: "asc" | "desc" }) {
+  if (col !== sortCol) return <CaretDown size={10} className="text-slate-300 ml-0.5 inline" />;
+  return sortDir === "asc"
+    ? <CaretUp size={10} className="text-blue-500 ml-0.5 inline" />
+    : <CaretDown size={10} className="text-blue-500 ml-0.5 inline" />;
+}
 
 export default function ProspectsPage() {
   const [prospects, setProspects] = useState<ProspectItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [sortCol, setSortCol] = useState<SortCol>("updatedAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawerData, setDrawerData] = useState<ProspectItem | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
+  const totalPages = Math.ceil(total / LIMIT);
+
   async function load() {
-    const params = new URLSearchParams({ limit: "100" });
+    setLoading(true);
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(LIMIT),
+      sortBy: sortCol,
+      sortDir,
+    });
     if (search) params.set("search", search);
     if (statusFilter) params.set("status", statusFilter);
     const data = await api.prospects(params);
@@ -27,12 +48,22 @@ export default function ProspectsPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [search, statusFilter]);
+  useEffect(() => { setPage(1); }, [search, statusFilter, sortCol, sortDir]);
+  useEffect(() => { load(); }, [page, search, statusFilter, sortCol, sortDir]);
 
   async function openDrawer(p: ProspectItem) {
     setSelectedId(p.id);
     const detail = await api.prospect(p.id);
     setDrawerData(detail);
+  }
+
+  function toggleSort(col: SortCol) {
+    if (col === sortCol) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
   }
 
   function toggleSelect(id: string) {
@@ -47,8 +78,6 @@ export default function ProspectsPage() {
   }
 
   const drawerProspect = prospects.find((p) => p.id === selectedId);
-
-  if (loading) return <div className="p-6 text-slate-500 text-sm">Cargando...</div>;
 
   return (
     <div className="p-6 space-y-4 pb-24">
@@ -71,87 +100,113 @@ export default function ProspectsPage() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden relative">
-        <div className="flex">
-          <div className="flex-1 overflow-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-slate-400 border-b border-slate-100 dark:border-slate-700">
-                  <th className="py-2 px-3 w-8">
-                    <input type="checkbox" onChange={(e) => setSelected(e.target.checked ? new Set(prospects.map((p) => p.id)) : new Set())} className="w-3 h-3" />
-                  </th>
-                  <th className="py-2 px-3 text-left font-semibold uppercase tracking-wide">Email</th>
-                  <th className="py-2 px-3 text-left font-semibold uppercase tracking-wide">Empresa</th>
-                  <th className="py-2 px-3 text-left font-semibold uppercase tracking-wide">Industria</th>
-                  <th className="py-2 px-3 text-left font-semibold uppercase tracking-wide">Estado</th>
-                  <th className="py-2 px-3 text-left font-semibold uppercase tracking-wide">Último contacto</th>
-                  <th className="py-2 px-3 w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {prospects.map((p) => (
-                  <tr key={p.id} className={`border-b border-slate-50 dark:border-slate-700/30 hover:bg-slate-50 dark:hover:bg-slate-700/20 ${selectedId === p.id ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}>
-                    <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} className="w-3 h-3" />
-                    </td>
-                    <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200 cursor-pointer" onClick={() => openDrawer(p)}>{p.email}</td>
-                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{p.companyName ?? "—"}</td>
-                    <td className="py-2 px-3 text-slate-500">{p.industry ?? "—"}</td>
-                    <td className="py-2 px-3"><Badge status={p.status} /></td>
-                    <td className="py-2 px-3 text-slate-400">{relativeTime(p.updatedAt)}</td>
-                    <td className="py-2 px-3 cursor-pointer" onClick={() => openDrawer(p)}><CaretRight size={12} className="text-slate-300" /></td>
-                  </tr>
-                ))}
-                {prospects.length === 0 && (
-                  <tr><td colSpan={7} className="py-8 text-center text-slate-400">Sin prospectos</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-slate-400 border-b border-slate-100 dark:border-slate-700">
+              <th className="py-2 px-3 w-8">
+                <input type="checkbox" onChange={(e) => setSelected(e.target.checked ? new Set(prospects.map((p) => p.id)) : new Set())} className="w-3 h-3" />
+              </th>
+              {(["email", "companyName", "industry", "status", "updatedAt"] as SortCol[]).map((col) => (
+                <th key={col} className="py-2 px-3 text-left font-semibold uppercase tracking-wide cursor-pointer hover:text-slate-600 select-none"
+                  onClick={() => toggleSort(col)}>
+                  {col === "companyName" ? "Empresa" : col === "updatedAt" ? "Último contacto" : col.charAt(0).toUpperCase() + col.slice(1)}
+                  <SortIcon col={col} sortCol={sortCol} sortDir={sortDir} />
+                </th>
+              ))}
+              <th className="py-2 px-3 w-8" />
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={7} className="py-8 text-center text-slate-400">Cargando...</td></tr>
+            ) : prospects.length === 0 ? (
+              <tr><td colSpan={7} className="py-8 text-center text-slate-400">Sin prospectos</td></tr>
+            ) : prospects.map((p) => (
+              <tr key={p.id} className={`border-b border-slate-50 dark:border-slate-700/30 hover:bg-slate-50 dark:hover:bg-slate-700/20 ${selectedId === p.id ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}>
+                <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} className="w-3 h-3" />
+                </td>
+                <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200 cursor-pointer" onClick={() => openDrawer(p)}>{p.email}</td>
+                <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{p.companyName ?? "—"}</td>
+                <td className="py-2 px-3 text-slate-500">{p.industry ?? "—"}</td>
+                <td className="py-2 px-3"><Badge status={p.status} /></td>
+                <td className="py-2 px-3 text-slate-400">{relativeTime(p.updatedAt)}</td>
+                <td className="py-2 px-3 cursor-pointer" onClick={() => openDrawer(p)}><CaretRight size={12} className="text-slate-300" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-          <Drawer
-            open={!!selectedId}
-            onClose={() => { setSelectedId(null); setDrawerData(null); }}
-            title={drawerProspect?.companyName ?? drawerProspect?.email ?? ""}
-            subtitle={drawerProspect?.email}
-          >
-            {drawerData && (
-              <>
-                <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Empresa</p>
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex justify-between"><span className="text-slate-500">Industria</span><span className="font-semibold">{drawerData.industry ?? "—"}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Fuente</span><span className="font-semibold">{drawerData.source.name}</span></div>
-                    {drawerData.website && <div className="flex justify-between"><span className="text-slate-500">Sitio web</span><span className="font-semibold text-blue-500">{drawerData.website}</span></div>}
-                    <div className="flex justify-between"><span className="text-slate-500">Agregado</span><span>{formatDate(drawerData.createdAt)}</span></div>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Historial de contacto</p>
-                  <div className="space-y-2">
-                    {drawerData.emailsSent?.map((es) => (
-                      <div key={es.id} className={`rounded-lg p-2.5 border-l-2 ${es.emailType === "INITIAL" ? "bg-blue-50 border-blue-400" : "bg-yellow-50 border-yellow-400"}`}>
-                        <p className="text-xs font-semibold text-slate-800">{es.emailType === "INITIAL" ? "Email inicial" : es.emailType.replace(/_/g, " ")}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{formatDate(es.sentAt)} · {es.events[0]?.eventType ?? "Enviado"}</p>
-                      </div>
-                    ))}
-                    {drawerData.responses?.map((r) => (
-                      <div key={r.id} className="bg-emerald-50 border-l-2 border-emerald-500 rounded-lg p-2.5">
-                        <p className="text-xs font-semibold text-emerald-800">Respondió</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{formatDate(r.receivedAt)}</p>
-                        {r.bodyPreview && <p className="text-xs text-slate-600 mt-1 line-clamp-2">{r.bodyPreview}</p>}
-                      </div>
-                    ))}
-                    {!drawerData.emailsSent?.length && !drawerData.responses?.length && (
-                      <p className="text-xs text-slate-400 text-center py-2">Sin contacto aún</p>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </Drawer>
+        {/* Pagination */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-slate-700">
+          <p className="text-xs text-slate-500">
+            {total === 0 ? "0 resultados" : `${((page - 1) * LIMIT) + 1}–${Math.min(page * LIMIT, total)} de ${total.toLocaleString()}`}
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ArrowLeft size={14} />
+            </button>
+            <span className="text-xs text-slate-600 dark:text-slate-300 px-2">
+              {page} / {totalPages || 1}
+            </span>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ArrowRight size={14} />
+            </button>
+          </div>
         </div>
       </div>
+
+      <Drawer
+        open={!!selectedId}
+        onClose={() => { setSelectedId(null); setDrawerData(null); }}
+        title={drawerProspect?.companyName ?? drawerProspect?.email ?? ""}
+        subtitle={drawerProspect?.email}
+      >
+        {drawerData && (
+          <>
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Empresa</p>
+              <div className="space-y-1.5 text-xs">
+                <div className="flex justify-between"><span className="text-slate-500">Industria</span><span className="font-semibold">{drawerData.industry ?? "—"}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Fuente</span><span className="font-semibold">{drawerData.source.name}</span></div>
+                {drawerData.website && <div className="flex justify-between"><span className="text-slate-500">Sitio web</span><a href={drawerData.website} target="_blank" rel="noreferrer" className="font-semibold text-blue-500 hover:underline truncate max-w-40">{drawerData.website}</a></div>}
+                <div className="flex justify-between"><span className="text-slate-500">Estado</span><Badge status={drawerData.status} /></div>
+                <div className="flex justify-between"><span className="text-slate-500">Agregado</span><span>{formatDate(drawerData.createdAt)}</span></div>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Historial de contacto</p>
+              <div className="space-y-2">
+                {drawerData.emailsSent?.map((es) => (
+                  <div key={es.id} className={`rounded-lg p-2.5 border-l-2 ${es.emailType === "INITIAL" ? "bg-blue-50 dark:bg-blue-900/20 border-blue-400" : "bg-amber-50 dark:bg-amber-900/20 border-amber-400"}`}>
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{es.emailType === "INITIAL" ? "Email inicial" : es.emailType.replace(/_/g, " ")}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{formatDate(es.sentAt)} · {es.events[0]?.eventType ?? "Enviado"}</p>
+                  </div>
+                ))}
+                {drawerData.responses?.map((r) => (
+                  <div key={r.id} className="bg-emerald-50 dark:bg-emerald-900/20 border-l-2 border-emerald-500 rounded-lg p-2.5">
+                    <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Respondió</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{formatDate(r.receivedAt)}</p>
+                    {r.bodyPreview && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">{r.bodyPreview}</p>}
+                  </div>
+                ))}
+                {!drawerData.emailsSent?.length && !drawerData.responses?.length && (
+                  <p className="text-xs text-slate-400 text-center py-2">Sin contacto aún</p>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </Drawer>
 
       {selected.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 border border-blue-200 shadow-xl rounded-xl px-6 py-3 flex items-center gap-6 z-50">

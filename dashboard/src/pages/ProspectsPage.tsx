@@ -177,11 +177,17 @@ export default function ProspectsPage() {
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Empresa</p>
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between"><span className="text-slate-500">Industria</span><span className="font-semibold">{drawerData.industry ?? "—"}</span></div>
+                {drawerData.companyType && <div className="flex justify-between"><span className="text-slate-500">Tipo</span><span className="font-semibold capitalize">{drawerData.companyType}</span></div>}
                 <div className="flex justify-between"><span className="text-slate-500">Fuente</span><span className="font-semibold">{drawerData.source.name}</span></div>
                 {drawerData.website && <div className="flex justify-between"><span className="text-slate-500">Sitio web</span><a href={drawerData.website} target="_blank" rel="noreferrer" className="font-semibold text-blue-500 hover:underline truncate max-w-40">{drawerData.website}</a></div>}
                 <div className="flex justify-between"><span className="text-slate-500">Estado</span><Badge status={drawerData.status} /></div>
                 <div className="flex justify-between"><span className="text-slate-500">Agregado</span><span>{formatDate(drawerData.createdAt)}</span></div>
               </div>
+              {drawerData.description && (
+                <div className="mt-3 p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{drawerData.description}</p>
+                </div>
+              )}
             </div>
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Historial de contacto</p>

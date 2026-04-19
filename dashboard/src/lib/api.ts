@@ -44,6 +44,7 @@ export interface JobsHistoryData { runs: JobRun[]; }
 export interface ProspectItem {
   id: string; email: string; companyName: string | null; industry: string | null;
   status: string; createdAt: string; updatedAt: string; website?: string | null;
+  companyType?: string | null; description?: string | null;
   source: { name: string; type: string };
   emailsSent?: { id: string; emailType: string; sentAt: string; events: { eventType: string; occurredAt: string }[] }[];
   responses?: { id: string; receivedAt: string; bodyPreview: string | null }[];

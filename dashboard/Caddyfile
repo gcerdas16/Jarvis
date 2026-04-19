@@ -1,0 +1,13 @@
+:{$PORT} {
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy https://jarvis-production-02d0.up.railway.app
+	}
+
+	handle {
+		root * /app/dist
+		try_files {path} /index.html
+		file_server
+	}
+}

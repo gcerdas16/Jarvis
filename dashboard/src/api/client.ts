@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
+const API_BASE =
+  import.meta.env.VITE_API_URL ??
+  (import.meta.env.PROD ? "https://jarvis-production-02d0.up.railway.app/api" : "/api");
 
 async function fetchApi<T>(endpoint: string): Promise<T> {
   const response = await fetch(`${API_BASE}${endpoint}`);

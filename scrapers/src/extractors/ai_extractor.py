@@ -3,6 +3,7 @@ import re
 import json
 from anthropic import Anthropic
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
@@ -27,49 +28,44 @@ Contenido de la página:
 """
 
 
+class CompanyContext(BaseModel):
+    """Validated company context extracted by Claude Haiku."""
+    company_name: str | None = Field(None)
+    industry: str | None = Field(None)
+    company_type: str | None = Field(None)
+    description: str | None = Field(None)
+
+
 def _prepare_content(markdown: str) -> str:
     """Strip markdown noise before sending to Claude to reduce token usage."""
-    # Remove image syntax entirely
     text = re.sub(r'!\[.*?\]\(.*?\)', '', markdown)
-    # Convert links to plain text, drop the URL
     text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
-    # Remove markdown header markers but keep the heading text
     text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
-    # Remove horizontal rules
     text = re.sub(r'^[-*_]{3,}\s*$', '', text, flags=re.MULTILINE)
-    # Collapse multiple blank lines into one
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()[:_MAX_CONTENT_CHARS]
 
 
+_EMPTY_CONTEXT = CompanyContext().model_dump()
+
+
 async def extract_company_context(markdown_content: str) -> dict:
-    """Use Claude Haiku to extract company context from page content."""
+    """Use Claude Haiku to extract and validate company context from page content."""
     try:
         content = _prepare_content(markdown_content)
 
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=300,
-            messages=[
-                {
-                    "role": "user",
-                    "content": EXTRACTION_PROMPT + content,
-                }
-            ],
+            messages=[{"role": "user", "content": EXTRACTION_PROMPT + content}],
         )
 
         text = response.content[0].text.strip()
-
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
-        return json.loads(text)
+        return CompanyContext.model_validate(json.loads(text)).model_dump()
 
     except Exception as e:
         print(f"[AIExtractor] Error: {e}")
-        return {
-            "company_name": None,
-            "industry": None,
-            "company_type": None,
-            "description": None,
-        }
+        return _EMPTY_CONTEXT

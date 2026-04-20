@@ -6,6 +6,8 @@ from src.serpapi.search import search_google
 from src.serpapi.maps import search_places
 from src.google_bot.site_visitor import SiteVisitor
 from src.utils.db import get_pool, insert_prospect, filter_unvisited_urls
+from src.query_generator import generate_and_insert as generate_keywords
+from src.qualification import triage_organic_results
 
 load_dotenv()
 
@@ -30,7 +32,6 @@ async def log_search_job(
     pool, keyword_id: str, search_type: str, page: int,
     results_count: int, new_urls_count: int,
 ) -> None:
-    """Log a search job to the database."""
     await pool.execute(
         """INSERT INTO search_jobs
         (id, keyword_id, search_type, page, results_count, new_urls_count, provider, searched_at)
@@ -40,7 +41,6 @@ async def log_search_job(
 
 
 async def update_keyword_after_search(pool, keyword_id: str, page: int) -> None:
-    """Update keyword's last_searched_at and advance page."""
     await pool.execute(
         """UPDATE search_keywords
         SET last_searched_at = NOW(), current_page = $2
@@ -49,23 +49,23 @@ async def update_keyword_after_search(pool, keyword_id: str, page: int) -> None:
     )
 
 
-async def select_keywords(pool) -> tuple[list[dict], set[str]]:
-    """Select today's keywords and return them with their industries."""
+async def select_keywords(pool) -> list[dict]:
     keywords = await get_daily_keywords(pool)
     if not keywords:
         print("[Daily] No keywords available")
-        return [], set()
-
+        return []
     industries = {kw["industry_label"] for kw in keywords}
     print(f"\n[Step 1] {len(keywords)} keywords seleccionados")
     print(f"  Industrias: {', '.join(sorted(industries))}")
-    return keywords, industries
+    return keywords
 
 
-async def run_organic_search(pool, keywords: list[dict]) -> tuple[list[str], set[str]]:
-    """Run Google organic search for each keyword. Returns all_urls and seen_urls."""
+async def run_organic_search(pool, keywords: list[dict]) -> tuple[list[dict], set[str]]:
+    """Run Google organic search for each keyword.
+    Returns (all_results with title/link/snippet, seen_urls set).
+    """
     print("\n[Step 2] Google Search — resultados orgánicos")
-    all_urls: list[str] = []
+    all_results: list[dict] = []
     seen_urls: set[str] = set()
 
     for kw in keywords:
@@ -77,26 +77,23 @@ async def run_organic_search(pool, keywords: list[dict]) -> tuple[list[str], set
         for r in results:
             if r["link"] not in seen_urls:
                 seen_urls.add(r["link"])
-                all_urls.append(r["link"])
+                all_results.append(r)
                 new_count += 1
 
         print(f"    → {len(results)} resultados ({new_count} nuevos)")
 
-        await log_search_job(
-            pool, kw["id"], "organic", page,
-            len(results), new_count,
-        )
+        await log_search_job(pool, kw["id"], "organic", page, len(results), new_count)
         await update_keyword_after_search(pool, kw["id"], page)
 
-    print(f"\n  Total URLs orgánicas únicas: {len(all_urls)}")
-    return all_urls, seen_urls
+    print(f"\n  Total URLs orgánicas únicas: {len(all_results)}")
+    return all_results, seen_urls
 
 
 async def run_maps_search(
     pool, keywords: list[dict], all_urls: list[str], seen_urls: set[str],
 ) -> list[dict]:
     """Run Google Maps search for each keyword. Appends websites to all_urls."""
-    print("\n[Step 3] Google Maps — lugares con contacto")
+    print("\n[Step 4] Google Maps — lugares con contacto")
     all_places: list[dict] = []
     seen_titles: set[str] = set()
 
@@ -118,10 +115,7 @@ async def run_maps_search(
         if places:
             print(f"  [{kw['industry']}] '{kw['keyword']}' → {len(places)} places ({new_count} new)")
 
-        await log_search_job(
-            pool, kw["id"], "maps", 1,
-            len(places), new_count,
-        )
+        await log_search_job(pool, kw["id"], "maps", 1, len(places), new_count)
 
     print(f"\n  Total lugares únicos: {len(all_places)}")
     print(f"  Total URLs combinadas: {len(all_urls)}")
@@ -129,12 +123,9 @@ async def run_maps_search(
 
 
 async def ensure_sources(pool) -> tuple[str, str]:
-    """Ensure serper_search and serper_maps sources exist. Returns their IDs."""
     source_ids = {}
     for source_name, source_type in [("serper_search", "google"), ("serper_maps", "maps")]:
-        row = await pool.fetchrow(
-            "SELECT id FROM sources WHERE name = $1", source_name
-        )
+        row = await pool.fetchrow("SELECT id FROM sources WHERE name = $1", source_name)
         if not row:
             row = await pool.fetchrow(
                 """INSERT INTO sources (id, name, type, is_active, created_at, updated_at)
@@ -143,12 +134,10 @@ async def ensure_sources(pool) -> tuple[str, str]:
                 source_name, source_type,
             )
         source_ids[source_name] = row["id"]
-
     return source_ids["serper_search"], source_ids["serper_maps"]
 
 
 async def insert_maps_prospects(pool, all_places: list[dict], maps_source_id: str) -> int:
-    """Save Maps-only prospects (have phone but no website). Returns count of new."""
     maps_new = 0
     for place in all_places:
         phone = place.get("phone", "")
@@ -173,7 +162,6 @@ async def insert_maps_prospects(pool, all_places: list[dict], maps_source_id: st
 
 
 async def visit_and_extract(pool, fresh_urls: list[str], search_source_id: str) -> None:
-    """Visit fresh URLs and extract emails + company context."""
     if not fresh_urls:
         print("\n[Step 7] No hay URLs nuevas para visitar")
         return
@@ -189,7 +177,6 @@ async def visit_and_extract(pool, fresh_urls: list[str], search_source_id: str) 
 
 
 async def print_summary(pool, fresh_urls_count: int) -> None:
-    """Print daily scraper summary."""
     row = await pool.fetchrow("SELECT COUNT(*) as count FROM prospects")
     total_keywords_searched = await pool.fetchval(
         "SELECT COUNT(*) FROM search_jobs WHERE searched_at > NOW() - interval '1 day'"
@@ -209,22 +196,37 @@ async def main():
     pool = await get_pool()
 
     try:
-        keywords, _ = await select_keywords(pool)
+        # Step 0 — Restock keyword bank if running low
+        await generate_keywords(pool)
+
+        # Step 1 — Select today's keywords
+        keywords = await select_keywords(pool)
         if not keywords:
             return
 
-        all_urls, seen_urls = await run_organic_search(pool, keywords)
+        # Step 2 — Organic search (returns results with snippets)
+        all_results, seen_urls = await run_organic_search(pool, keywords)
+
+        # Step 3 — Two-stage triage: filter out directories / news / social via Claude Haiku
+        print("\n[Step 3] Triage IA — filtrando resultados de baja calidad")
+        all_results = await triage_organic_results(all_results)
+        all_urls = [r["link"] for r in all_results]
+
+        # Step 4 — Maps search (appends website URLs to all_urls)
         all_places = await run_maps_search(pool, keywords, all_urls, seen_urls)
 
+        # Step 5 — Filter already-visited URLs
         fresh_urls = await filter_unvisited_urls(pool, all_urls)
         skipped = len(all_urls) - len(fresh_urls)
-        print(f"\n[Step 4] Filtro de URLs visitadas")
+        print(f"\n[Step 5] Filtro de URLs visitadas")
         print(f"  URLs totales: {len(all_urls)}")
         print(f"  Ya visitadas: {skipped}")
         print(f"  Por visitar: {len(fresh_urls)}")
 
         search_source_id, maps_source_id = await ensure_sources(pool)
         await insert_maps_prospects(pool, all_places, maps_source_id)
+
+        # Step 7 — Visit and extract
         await visit_and_extract(pool, fresh_urls, search_source_id)
         await print_summary(pool, len(fresh_urls))
 

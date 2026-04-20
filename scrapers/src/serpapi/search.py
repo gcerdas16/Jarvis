@@ -9,8 +9,20 @@ SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
 SEARCH_URL = "https://google.serper.dev/search"
 
 SKIP_DOMAINS = {
+    # Search / social / video
     "google.com", "youtube.com", "wikipedia.org", "reddit.com",
     "tiktok.com", "pinterest.com", "amazon.com",
+    "facebook.com", "instagram.com", "twitter.com", "x.com",
+    "linkedin.com", "snapchat.com", "threads.net",
+    # Review aggregators & directories
+    "yelp.com", "tripadvisor.com", "yellowpages.com",
+    "paginas.cr", "guiatelefonica.com", "cylex.cr",
+    "infoisinfo.es", "europages.es", "hotfrog.com",
+    "manta.com", "foursquare.com", "trustpilot.com",
+    "clutch.co", "g2.com", "capterra.com",
+    # News / media (CR)
+    "nacion.com", "crhoy.com", "teletica.com", "repretel.com",
+    "elmundo.cr", "delfino.cr", "semanario.ucr.ac.cr",
 }
 
 

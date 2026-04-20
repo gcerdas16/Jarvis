@@ -8,6 +8,7 @@ from src.google_bot.site_visitor import SiteVisitor
 from src.utils.db import get_pool, insert_prospect, filter_unvisited_urls
 from src.query_generator import generate_and_insert as generate_keywords
 from src.qualification import triage_organic_results
+from src.osm.overpass import fetch_cr_businesses
 
 load_dotenv()
 
@@ -122,9 +123,13 @@ async def run_maps_search(
     return all_places
 
 
-async def ensure_sources(pool) -> tuple[str, str]:
+async def ensure_sources(pool) -> tuple[str, str, str]:
     source_ids = {}
-    for source_name, source_type in [("serper_search", "google"), ("serper_maps", "maps")]:
+    for source_name, source_type in [
+        ("serper_search", "google"),
+        ("serper_maps", "maps"),
+        ("osm_overpass", "directory"),
+    ]:
         row = await pool.fetchrow("SELECT id FROM sources WHERE name = $1", source_name)
         if not row:
             row = await pool.fetchrow(
@@ -134,7 +139,59 @@ async def ensure_sources(pool) -> tuple[str, str]:
                 source_name, source_type,
             )
         source_ids[source_name] = row["id"]
-    return source_ids["serper_search"], source_ids["serper_maps"]
+    return source_ids["serper_search"], source_ids["serper_maps"], source_ids["osm_overpass"]
+
+
+async def process_osm_businesses(
+    pool, businesses: list[dict], osm_source_id: str,
+    all_urls: list[str], seen_urls: set[str],
+) -> int:
+    """Insert OSM businesses with direct emails, and append their websites to all_urls.
+
+    Returns count of newly inserted prospects (emails only — websites are visited later).
+    """
+    if not businesses:
+        return 0
+
+    new_with_email = 0
+    new_urls = 0
+
+    for biz in businesses:
+        email = biz.get("email")
+        website = biz.get("website")
+        description_parts = []
+        if biz.get("category"):
+            description_parts.append(f"Categoría OSM: {biz['category']}")
+        if biz.get("phone"):
+            description_parts.append(f"Tel: {biz['phone']}")
+        if biz.get("address"):
+            description_parts.append(f"Dir: {biz['address']}")
+        description = " | ".join(description_parts) or None
+
+        # Direct email: insert immediately (dedup is in insert_prospect)
+        if email and "@" in email:
+            inserted = await insert_prospect(
+                pool,
+                email=email.lower().strip(),
+                company_name=biz.get("name"),
+                website=website,
+                industry=None,
+                company_type=None,
+                description=description,
+                source_id=osm_source_id,
+            )
+            if inserted:
+                new_with_email += 1
+
+        # Website-only: feed into URL pipeline for Crawl4AI visit
+        if website and website.startswith("http") and website not in seen_urls:
+            seen_urls.add(website)
+            all_urls.append(website)
+            new_urls += 1
+
+    print(f"  Emails directos insertados: {new_with_email}")
+    print(f"  Websites agregados a cola: {new_urls}")
+    return new_with_email
 
 
 async def insert_maps_prospects(pool, all_places: list[dict], maps_source_id: str) -> int:
@@ -215,16 +272,23 @@ async def main():
         # Step 4 — Maps search (appends website URLs to all_urls)
         all_places = await run_maps_search(pool, keywords, all_urls, seen_urls)
 
-        # Step 5 — Filter already-visited URLs
+        search_source_id, maps_source_id, osm_source_id = await ensure_sources(pool)
+        await insert_maps_prospects(pool, all_places, maps_source_id)
+
+        # Step 5 — OpenStreetMap (Overpass): free parallel source of CR businesses
+        print("\n[Step 5] OpenStreetMap — empresas con contacto en OSM")
+        osm_businesses = await asyncio.to_thread(fetch_cr_businesses)
+        await process_osm_businesses(
+            pool, osm_businesses, osm_source_id, all_urls, seen_urls,
+        )
+
+        # Step 6 — Filter already-visited URLs
         fresh_urls = await filter_unvisited_urls(pool, all_urls)
         skipped = len(all_urls) - len(fresh_urls)
-        print(f"\n[Step 5] Filtro de URLs visitadas")
+        print(f"\n[Step 6] Filtro de URLs visitadas")
         print(f"  URLs totales: {len(all_urls)}")
         print(f"  Ya visitadas: {skipped}")
         print(f"  Por visitar: {len(fresh_urls)}")
-
-        search_source_id, maps_source_id = await ensure_sources(pool)
-        await insert_maps_prospects(pool, all_places, maps_source_id)
 
         # Step 7 — Visit and extract
         await visit_and_extract(pool, fresh_urls, search_source_id)

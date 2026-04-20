@@ -1,4 +1,5 @@
 import asyncio
+import random
 import re
 import time
 import asyncpg
@@ -11,13 +12,25 @@ from src.extractors.ai_extractor import extract_company_context
 
 # Subpages to check for contact info beyond the homepage
 CONTACT_PATHS = [
+    # English
     "contact", "about", "contact-us", "about-us", "team", "our-story",
+    # Spanish
     "contacto", "contactenos", "nosotros", "sobre-nosotros", "info",
-    "contato", "servicios", "services", "equipo",
+    "servicios", "services", "equipo",
+    "quienes-somos", "empresa", "compania", "acerca-de",
+    # Portuguese
+    "contato",
 ]
 
 # Target main content areas — strips nav/scripts/ads, reduces tokens ~70%
 CSS_CONTENT_SELECTOR = "main, article, section, .content, #content, footer, header"
+
+# HTML tags to exclude from Crawl4AI output (further trims markdown before LLM)
+EXCLUDED_TAGS = ["script", "style", "noscript", "iframe", "svg", "nav"]
+
+# Inter-request delay range (seconds) — random jitter to look less bot-like
+MIN_DELAY_SECONDS = 3.0
+MAX_DELAY_SECONDS = 7.0
 
 _HTTP_HEADERS = {
     "User-Agent": (
@@ -121,13 +134,18 @@ class SiteVisitor:
     def __init__(self, source_id: str, pool: asyncpg.Pool):
         self.source_id = source_id
         self.pool = pool
-        self.browser_config = BrowserConfig(headless=True)
+        # light_mode=True tells Crawl4AI to skip heavy resources (images, fonts, media)
+        self.browser_config = BrowserConfig(headless=True, light_mode=True)
 
     async def _crawl_url(self, crawler: AsyncWebCrawler, url: str) -> tuple[str, str] | None:
         """Crawl a single URL. Returns (filtered_markdown, raw_html) or None on failure."""
         result = await crawler.arun(
             url=url,
-            config=CrawlerRunConfig(css_selector=CSS_CONTENT_SELECTOR),
+            config=CrawlerRunConfig(
+                css_selector=CSS_CONTENT_SELECTOR,
+                excluded_tags=EXCLUDED_TAGS,
+                exclude_external_images=True,
+            ),
         )
         if not result.success or not result.markdown:
             await mark_url_visited(self.pool, url, found_emails=False)
@@ -234,7 +252,8 @@ class SiteVisitor:
                         total_found += found
                         total_new += new
 
-                        await asyncio.sleep(5)
+                        # Random jitter between requests — look less bot-like
+                        await asyncio.sleep(random.uniform(MIN_DELAY_SECONDS, MAX_DELAY_SECONDS))
 
                     except Exception as e:
                         print(f"[SiteVisitor] Error visiting {url}: {e}")

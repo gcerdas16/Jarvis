@@ -9,6 +9,7 @@ from src.utils.db import get_pool, insert_prospect, filter_unvisited_urls
 from src.query_generator import generate_and_insert as generate_keywords
 from src.qualification import triage_organic_results
 from src.osm.overpass import fetch_cr_businesses
+from src.utils.scoring import compute_maturity_score
 
 load_dotenv()
 
@@ -159,6 +160,7 @@ async def process_osm_businesses(
     for biz in businesses:
         email = biz.get("email")
         website = biz.get("website")
+        social = biz.get("social") or {}
         description_parts = []
         if biz.get("category"):
             description_parts.append(f"Categoría OSM: {biz['category']}")
@@ -170,6 +172,9 @@ async def process_osm_businesses(
 
         # Direct email: insert immediately (dedup is in insert_prospect)
         if email and "@" in email:
+            score, tier = compute_maturity_score(
+                email=email, website=website, social=social, tech_stack=None,
+            )
             inserted = await insert_prospect(
                 pool,
                 email=email.lower().strip(),
@@ -179,6 +184,14 @@ async def process_osm_businesses(
                 company_type=None,
                 description=description,
                 source_id=osm_source_id,
+                instagram=social.get("instagram"),
+                facebook=social.get("facebook"),
+                linkedin=social.get("linkedin"),
+                whatsapp=social.get("whatsapp"),
+                tiktok=social.get("tiktok"),
+                tech_stack=None,
+                maturity_score=score,
+                lead_tier=tier,
             )
             if inserted:
                 new_with_email += 1

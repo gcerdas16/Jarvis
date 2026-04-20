@@ -18,6 +18,34 @@ _BUSINESS_CATEGORIES = ["amenity", "shop", "office", "craft", "healthcare", "tou
 # OSM tags that carry contact info
 _CONTACT_TAGS = ["email", "contact:email", "website", "contact:website"]
 
+# OSM tag pairs for each social platform (pref first, fallback second)
+_SOCIAL_TAG_MAP = {
+    "facebook":  ["contact:facebook", "facebook"],
+    "instagram": ["contact:instagram", "instagram"],
+    "linkedin":  ["contact:linkedin", "linkedin"],
+    "whatsapp":  ["contact:whatsapp", "whatsapp"],
+    "tiktok":    ["contact:tiktok", "tiktok"],
+}
+
+
+def _pick_social(tags: dict) -> dict[str, str | None]:
+    """Return normalized social profile URLs from OSM tags (or None per platform)."""
+    out: dict[str, str | None] = {}
+    for platform, candidates in _SOCIAL_TAG_MAP.items():
+        value = None
+        for tag_key in candidates:
+            if tags.get(tag_key):
+                value = tags[tag_key]
+                break
+        # OSM values can be handles instead of URLs; normalize common cases
+        if value and not value.startswith("http"):
+            if platform == "whatsapp":
+                value = f"https://wa.me/{value.lstrip('+').replace(' ', '')}"
+            else:
+                value = f"https://www.{platform}.com/{value.lstrip('@/')}"
+        out[platform] = value
+    return out
+
 _HTTP_HEADERS = {"User-Agent": "Jarvis-Outreach/1.0 (github.com/gcerdas16/Jarvis)"}
 
 
@@ -101,6 +129,7 @@ def fetch_cr_businesses() -> list[dict]:
             "phone": tags.get("phone") or tags.get("contact:phone"),
             "category": category,
             "address": address,
+            "social": _pick_social(tags),
         })
 
     print(f"[OSM] {len(results)} negocios únicos con contacto")

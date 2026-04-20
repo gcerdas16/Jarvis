@@ -8,6 +8,7 @@ from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
 
 from src.utils.email_extractor import extract_emails
 from src.utils.db import insert_prospect, log_scrape, filter_unvisited_urls, mark_url_visited
+from src.utils.scoring import compute_maturity_score
 from src.extractors.ai_extractor import extract_company_context
 
 # Subpages to check for contact info beyond the homepage
@@ -95,39 +96,6 @@ def _detect_tech_stack(html: str) -> str | None:
     return None
 
 
-def _compute_maturity_score(
-    email: str,
-    website: str | None,
-    social: dict[str, str | None],
-    tech_stack: str | None,
-    company_name: str | None,
-) -> tuple[int, str]:
-    """Return (score 0-100, tier N1/N2/N3)."""
-    score = 0
-    if website:
-        score += 20
-    if email:
-        score += 20
-    if social.get("instagram") or social.get("facebook"):
-        score += 20
-    if social.get("linkedin"):
-        score += 15
-    if tech_stack and tech_stack not in ("Wix", "Blogger", "Custom"):
-        score += 15
-    if social.get("tiktok") or social.get("whatsapp"):
-        score += 10
-    score = min(score, 100)
-
-    if score >= 60:
-        tier = "N1"
-    elif score >= 30:
-        tier = "N2"
-    else:
-        tier = "N3"
-
-    return score, tier
-
-
 class SiteVisitor:
     """Visits URLs from Google search, extracts emails and context."""
 
@@ -196,12 +164,11 @@ class SiteVisitor:
 
         new_count = 0
         for email in emails:
-            score, tier = _compute_maturity_score(
+            score, tier = compute_maturity_score(
                 email=email,
                 website=url,
                 social=social,
                 tech_stack=tech_stack,
-                company_name=context.get("company_name"),
             )
             inserted = await insert_prospect(
                 self.pool,

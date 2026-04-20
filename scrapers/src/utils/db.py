@@ -34,6 +34,14 @@ async def insert_prospect(
     company_type: str | None,
     description: str | None,
     source_id: str,
+    instagram: str | None = None,
+    facebook: str | None = None,
+    linkedin: str | None = None,
+    whatsapp: str | None = None,
+    tiktok: str | None = None,
+    tech_stack: str | None = None,
+    maturity_score: int | None = None,
+    lead_tier: str | None = None,
 ) -> str | None:
     if await is_duplicate(pool, email):
         return None
@@ -42,14 +50,24 @@ async def insert_prospect(
 
     row = await pool.fetchrow(
         """
-        INSERT INTO prospects (id, email, company_name, website, industry,
-                               company_type, description, source_id, status,
-                               country, created_at, updated_at)
-        VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, 'NEW', 'CR', NOW(), NOW())
+        INSERT INTO prospects (
+            id, email, company_name, website, industry, company_type, description,
+            instagram, facebook, linkedin, whatsapp, tiktok,
+            tech_stack, maturity_score, lead_tier,
+            source_id, status, country, created_at, updated_at
+        )
+        VALUES (
+            gen_random_uuid()::text, $1, $2, $3, $4, $5, $6,
+            $7, $8, $9, $10, $11,
+            $12, $13, $14,
+            $15, 'NEW', 'CR', NOW(), NOW()
+        )
         RETURNING id
         """,
-        email, company_name, website, industry,
-        company_type, description, source_id,
+        email, company_name, website, industry, company_type, description,
+        instagram, facebook, linkedin, whatsapp, tiktok,
+        tech_stack, maturity_score, lead_tier,
+        source_id,
     )
     return row["id"] if row else None
 

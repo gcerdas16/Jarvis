@@ -35,15 +35,23 @@ model Prospect {
   website      String?
   industry     String?
   companyType  String?         @map("company_type") // "solidarista", "pyme", "corporacion", etc.
-  description  String?         // what the company does (AI extracted)
-  country      String          @default("CR")
-  status       ProspectStatus  @default(NEW)
-  keyword      String?         @map("keyword")
-  searchType   String?         @map("search_type")
-  sourceId     String          @map("source_id")
-  source       Source          @relation(fields: [sourceId], references: [id])
-  createdAt    DateTime        @default(now()) @map("created_at")
-  updatedAt    DateTime        @updatedAt @map("updated_at")
+  description   String?         // what the company does (AI extracted)
+  instagram     String?
+  facebook      String?
+  linkedin      String?
+  whatsapp      String?
+  tiktok        String?
+  techStack     String?         @map("tech_stack")
+  maturityScore Int?            @map("maturity_score")  // 0-100
+  leadTier      String?         @map("lead_tier")       // N1 / N2 / N3
+  country       String          @default("CR")
+  status        ProspectStatus  @default(NEW)
+  keyword       String?         @map("keyword")
+  searchType    String?         @map("search_type")
+  sourceId      String          @map("source_id")
+  source        Source          @relation(fields: [sourceId], references: [id])
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
 
   emailsSent   EmailSent[]
   responses    Response[]
@@ -53,6 +61,8 @@ model Prospect {
   @@index([status])
   @@index([sourceId])
   @@index([companyType])
+  @@index([leadTier])
+  @@index([maturityScore])
   @@map("prospects")
 }
 

@@ -9,6 +9,11 @@ BLACKLISTED_PATTERNS = {
     "noreply@", "no-reply@", "mailer-daemon@",
     "postmaster@", "webmaster@", "admin@localhost",
     ".png", ".jpg", ".gif", ".svg", ".css", ".js",
+    # Junk patterns from common web frameworks and placeholders
+    "sentry", "webpack", "wixpress", "wordpress",
+    "latofonts", "gravatar", "developer.",
+    "yoursite", "yourdomain", "email@", "name@",
+    "info@example", "test@", "change.me",
 }
 
 BLACKLISTED_DOMAINS = {
@@ -16,6 +21,7 @@ BLACKLISTED_DOMAINS = {
     "sentry.io", "github.com", "googleapis.com",
     "w3.org", "schema.org", "facebook.com",
     "twitter.com", "instagram.com",
+    "wix.com", "fonts.com",
     "1x.ec", "2x.ec",
 }
 
@@ -26,6 +32,16 @@ VALID_TLDS = {
     "mx", "co", "cl", "ar", "pe", "br", "ec", "pa", "gt", "hn",
     "sv", "ni", "do", "py", "uy", "bo", "ve", "ws", "edu", "gov",
 }
+
+
+def deobfuscate_html(text: str) -> str:
+    """Reverse common email obfuscation tricks before extracting emails."""
+    text = re.sub(r'\s*\[\s*at\s*\]\s*', '@', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s*\(\s*at\s*\)\s*', '@', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s+@\s+', '@', text)
+    text = re.sub(r'\s*\[\s*dot\s*\]\s*', '.', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s*\(\s*dot\s*\)\s*', '.', text, flags=re.IGNORECASE)
+    return text
 
 
 def _clean_email(email: str) -> str | None:
@@ -61,6 +77,7 @@ def _clean_email(email: str) -> str | None:
 
 def extract_emails(text: str) -> list[str]:
     """Extract and clean email addresses from text."""
+    text = deobfuscate_html(text)
     raw_emails = EMAIL_REGEX.findall(text)
     valid_emails = []
     seen: set[str] = set()

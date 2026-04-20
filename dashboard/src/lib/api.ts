@@ -53,8 +53,9 @@ export interface ProspectItem {
 }
 
 export interface QueueItem { id: string; email: string; companyName: string | null; industry: string | null; source: string; }
-export interface QueueFollowUp { id: string; email: string; companyName: string | null; industry: string | null; status: string; nextEmailType: string; updatedAt: string; }
-export interface QueueData { initial: QueueItem[]; followUps: QueueFollowUp[]; hasBatchConfirmed: boolean; totalTomorrow: number; }
+export interface QueueFollowUp { id: string; email: string; companyName: string | null; industry: string | null; status: string; nextEmailType: string; updatedAt: string; hasTemplate: boolean; }
+export interface QueueCampaign { id: string; name: string; subjectLine: string; bodyTemplate: string; followUp1: string | null; followUp2: string | null; followUp3: string | null; }
+export interface QueueData { dailyLimit: number; campaign: QueueCampaign | null; initial: QueueItem[]; followUps: QueueFollowUp[]; allFollowUpsDue: number; hasBatchConfirmed: boolean; totalTomorrow: number; }
 export interface ProspectsData { prospects: ProspectItem[]; pagination: { page: number; total: number; totalPages: number; limit: number }; }
 
 export interface UnsubscribeItem { id: string; email: string; reason: string | null; createdAt: string; }

@@ -46,10 +46,16 @@ export interface ProspectItem {
   status: string; createdAt: string; updatedAt: string; website?: string | null;
   companyType?: string | null; description?: string | null;
   source: { name: string; type: string };
-  emailsSent?: { id: string; emailType: string; sentAt: string; events: { eventType: string; occurredAt: string }[] }[];
+  emailsSent?: { id: string; emailType: string; subject: string; sentAt: string; events: { eventType: string; occurredAt: string }[] }[];
   responses?: { id: string; receivedAt: string; bodyPreview: string | null }[];
 }
 export interface ProspectsData { prospects: ProspectItem[]; pagination: { page: number; total: number; totalPages: number; limit: number }; }
+
+export interface UnsubscribeItem { id: string; email: string; reason: string | null; createdAt: string; }
+export interface UnsubscribesData { unsubscribes: UnsubscribeItem[]; pagination: { page: number; total: number; totalPages: number; limit: number }; }
+
+export interface KeywordItem { id: string; keyword: string; industry: string; currentPage: number; maxPage: number; lastSearchedAt: string | null; isActive: boolean; }
+export interface KeywordsData { keywords: KeywordItem[]; total: number; }
 
 // --- Fetchers ---
 
@@ -63,6 +69,8 @@ export const api = {
   jobsHistory: (params: URLSearchParams) => get<JobsHistoryData>(`/jobs/history?${params}`),
   prospects: (params: URLSearchParams) => get<ProspectsData>(`/prospects?${params}`),
   prospect: (id: string) => get<ProspectItem>(`/prospects/${id}`),
+  unsubscribes: (params: URLSearchParams) => get<UnsubscribesData>(`/unsubscribes?${params}`),
+  scraperKeywords: () => get<KeywordsData>("/metrics/scraper/keywords"),
   confirmBatch: (prospectIds: string[], date: string) =>
     fetch(`${BASE}/prospects/batch`, {
       method: "PATCH",

@@ -7,6 +7,7 @@ import { campaignsRouter } from "./routes/campaigns";
 import { emailsRouter } from "./routes/emails";
 import { jobsRouter } from "./routes/jobs";
 import { webhooksRouter } from "./routes/webhooks";
+import { unsubscribesRouter } from "./routes/unsubscribes";
 import { startScheduler } from "./jobs/scheduler";
 
 const app = express();
@@ -30,6 +31,7 @@ app.use("/api/campaigns", campaignsRouter);
 app.use("/api/emails", emailsRouter);
 app.use("/api/jobs", jobsRouter);
 app.use("/api/webhooks", webhooksRouter);
+app.use("/api/unsubscribes", unsubscribesRouter);
 
 if (process.env.NODE_ENV === "production") {
   startScheduler();

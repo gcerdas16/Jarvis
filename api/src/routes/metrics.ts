@@ -181,6 +181,35 @@ metricsRouter.get("/scraper/today", async (_req, res) => {
   }
 });
 
+// GET /api/metrics/scraper/keywords — keyword bank with progress
+metricsRouter.get("/scraper/keywords", async (_req, res) => {
+  try {
+    const keywords = await prisma.searchKeyword.findMany({
+      include: { industry: { select: { label: true } } },
+      orderBy: [{ lastSearchedAt: "desc" }, { keyword: "asc" }],
+      take: 200,
+    });
+    res.json({
+      success: true,
+      data: {
+        keywords: keywords.map((k) => ({
+          id: k.id,
+          keyword: k.keyword,
+          industry: k.industry.label,
+          currentPage: k.currentPage,
+          maxPage: k.maxPage,
+          lastSearchedAt: k.lastSearchedAt,
+          isActive: k.isActive,
+        })),
+        total: keywords.length,
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, error: "Failed to fetch keywords" });
+  }
+});
+
 // GET /api/metrics/scraper/daily — 7-day bar chart
 metricsRouter.get("/scraper/daily", async (_req, res) => {
   try {

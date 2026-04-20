@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, ScraperTodayData } from "../lib/api";
+import { api, ScraperTodayData, KeywordItem } from "../lib/api";
 import { KpiCard } from "../components/ui/KpiCard";
 import { Badge } from "../components/ui/Badge";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
@@ -9,12 +9,15 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 export default function ScrapersPage() {
   const [data, setData] = useState<ScraperTodayData | null>(null);
   const [daily, setDaily] = useState<{ date: string; leads: number }[]>([]);
+  const [keywords, setKeywords] = useState<KeywordItem[]>([]);
+  const [kwFilter, setKwFilter] = useState("");
   const [loading, setLoading] = useState(true);
 
   async function load() {
-    const [td, dl] = await Promise.all([api.scraperToday(), api.scraperDaily()]);
+    const [td, dl, kw] = await Promise.all([api.scraperToday(), api.scraperDaily(), api.scraperKeywords()]);
     setData(td);
     setDaily(dl.days);
+    setKeywords(kw.keywords);
     setLoading(false);
   }
 
@@ -107,6 +110,53 @@ export default function ScrapersPage() {
             </div>
           </div>
         </div>
+      </div>
+      {/* Keyword bank */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
+          <p className="text-sm font-bold text-slate-900 dark:text-white">Banco de Keywords ({keywords.length})</p>
+          <input value={kwFilter} onChange={(e) => setKwFilter(e.target.value)} placeholder="Filtrar..."
+            className="text-xs px-2.5 py-1 border border-slate-200 dark:border-slate-600 rounded-lg bg-transparent text-slate-700 dark:text-slate-300 outline-none w-40" />
+        </div>
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-slate-400 border-b border-slate-100 dark:border-slate-700">
+              <th className="py-2 px-3 text-left font-semibold uppercase tracking-wide">Keyword</th>
+              <th className="py-2 px-3 text-left font-semibold uppercase tracking-wide">Industria</th>
+              <th className="py-2 px-3 text-center font-semibold uppercase tracking-wide">Progreso</th>
+              <th className="py-2 px-3 text-right font-semibold uppercase tracking-wide">Último run</th>
+              <th className="py-2 px-3 text-center font-semibold uppercase tracking-wide">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {keywords.filter((k) => !kwFilter || k.keyword.toLowerCase().includes(kwFilter.toLowerCase()) || k.industry.toLowerCase().includes(kwFilter.toLowerCase())).map((k) => (
+              <tr key={k.id} className="border-b border-slate-50 dark:border-slate-700/30 hover:bg-slate-50 dark:hover:bg-slate-700/20">
+                <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">{k.keyword}</td>
+                <td className="py-2 px-3 text-slate-500">{k.industry}</td>
+                <td className="py-2 px-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded">
+                      <div className="h-1.5 bg-blue-500 rounded" style={{ width: `${Math.min(((k.currentPage - 1) / k.maxPage) * 100, 100)}%` }} />
+                    </div>
+                    <span className="text-slate-500 tabular-nums">{k.currentPage - 1}/{k.maxPage}</span>
+                  </div>
+                </td>
+                <td className="py-2 px-3 text-right text-slate-400">{k.lastSearchedAt ? relativeTime(k.lastSearchedAt) : "—"}</td>
+                <td className="py-2 px-3 text-center">
+                  {k.currentPage > k.maxPage
+                    ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 font-medium">Agotado</span>
+                    : k.isActive
+                      ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 font-medium">Activo</span>
+                      : <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-400 font-medium">Inactivo</span>
+                  }
+                </td>
+              </tr>
+            ))}
+            {keywords.length === 0 && (
+              <tr><td colSpan={5} className="py-8 text-center text-slate-400">Sin keywords</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

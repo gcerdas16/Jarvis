@@ -195,7 +195,18 @@ export default function ProspectsPage() {
                 {drawerData.emailsSent?.map((es) => (
                   <div key={es.id} className={`rounded-lg p-2.5 border-l-2 ${es.emailType === "INITIAL" ? "bg-blue-50 dark:bg-blue-900/20 border-blue-400" : "bg-amber-50 dark:bg-amber-900/20 border-amber-400"}`}>
                     <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{es.emailType === "INITIAL" ? "Email inicial" : es.emailType.replace(/_/g, " ")}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{formatDate(es.sentAt)} · {es.events[0]?.eventType ?? "Enviado"}</p>
+                    <p className="text-xs text-slate-400 mt-0.5 truncate" title={es.subject}>{es.subject}</p>
+                    <p className="text-xs text-slate-500 mt-1">{formatDate(es.sentAt)}</p>
+                    {es.events.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {es.events.map((ev, i) => (
+                          <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-white/60 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 font-medium">
+                            {ev.eventType}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {es.events.length === 0 && <p className="text-[10px] text-slate-400 mt-1">Sin eventos aún</p>}
                   </div>
                 ))}
                 {drawerData.responses?.map((r) => (

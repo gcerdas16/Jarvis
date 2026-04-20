@@ -126,32 +126,38 @@ metricsRouter.get("/daily", async (_req, res) => {
   }
 });
 
-// GET /api/metrics/scraper/today
-metricsRouter.get("/scraper/today", async (_req, res) => {
+// GET /api/metrics/scraper/today?date=YYYY-MM-DD
+metricsRouter.get("/scraper/today", async (req, res) => {
   try {
-    const today = todayStart();
+    const dateParam = typeof req.query.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : null;
+    const today = dateParam ? new Date(dateParam + "T00:00:00") : todayStart();
+    const todayEnd = new Date(today);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+    const isToday = !dateParam;
+
     const [agg, logs, topIndustries] = await Promise.all([
       prisma.scrapeLog.aggregate({
-        where: { startedAt: { gte: today } },
+        where: { startedAt: { gte: today, lt: todayEnd } },
         _sum: { prospectsFound: true, prospectsNew: true },
         _count: { id: true },
       }),
       prisma.searchJob.findMany({
-        where: { searchedAt: { gte: today } },
+        where: { searchedAt: { gte: today, lt: todayEnd } },
         include: { keyword: { include: { industry: true } } },
         orderBy: { searchedAt: "asc" },
-        take: 20,
+        take: 100,
       }),
       prisma.prospect.groupBy({
         by: ["industry"],
-        where: { createdAt: { gte: today }, industry: { not: null } },
+        where: { createdAt: { gte: today, lt: todayEnd }, industry: { not: null } },
         _count: { id: true },
         orderBy: { _count: { id: "desc" } },
         take: 5,
       }),
     ]);
 
-    const urlsVisited = await prisma.visitedUrl.count({ where: { visitedAt: { gte: today } } });
+    const urlsVisited = await prisma.visitedUrl.count({ where: { visitedAt: { gte: today, lt: todayEnd } } });
+    void isToday;
 
     res.json({
       success: true,

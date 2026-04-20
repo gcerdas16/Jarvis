@@ -70,7 +70,8 @@ prospectsRouter.get("/:id", async (req, res) => {
           include: { events: true },
           orderBy: { sentAt: "asc" },
         },
-        responses: { orderBy: { receivedAt: "desc" } },
+        responses: { orderBy: { receivedAt: "asc" } },
+        notes: { orderBy: { createdAt: "asc" } },
       },
     });
 
@@ -82,6 +83,23 @@ prospectsRouter.get("/:id", async (req, res) => {
     res.json({ success: true, data: prospect });
   } catch {
     res.status(500).json({ success: false, error: "Failed to fetch prospect" });
+  }
+});
+
+const noteSchema = z.object({
+  noteType: z.enum(["GENERAL", "NOT_INTERESTED", "MEETING", "DEMO"]).default("GENERAL"),
+  content: z.string().min(1).max(2000),
+});
+
+prospectsRouter.post("/:id/notes", async (req, res) => {
+  try {
+    const { noteType, content } = noteSchema.parse(req.body);
+    const note = await prisma.prospectNote.create({
+      data: { prospectId: req.params.id, noteType, content },
+    });
+    res.status(201).json({ success: true, data: note });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error instanceof z.ZodError ? error.errors[0].message : "Failed to save note" });
   }
 });
 

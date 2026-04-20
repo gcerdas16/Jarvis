@@ -41,6 +41,7 @@ export interface JobRun { id: string; jobType: string; status: string; startedAt
 export interface JobsStatusData { jobs: JobStatus[]; }
 export interface JobsHistoryData { runs: JobRun[]; }
 
+export interface ProspectNote { id: string; noteType: string; content: string; createdAt: string; }
 export interface ProspectItem {
   id: string; email: string; companyName: string | null; industry: string | null;
   status: string; createdAt: string; updatedAt: string; website?: string | null;
@@ -48,7 +49,12 @@ export interface ProspectItem {
   source: { name: string; type: string };
   emailsSent?: { id: string; emailType: string; subject: string; sentAt: string; events: { eventType: string; occurredAt: string }[] }[];
   responses?: { id: string; receivedAt: string; bodyPreview: string | null }[];
+  notes?: ProspectNote[];
 }
+
+export interface QueueItem { id: string; email: string; companyName: string | null; industry: string | null; source: string; }
+export interface QueueFollowUp { id: string; email: string; companyName: string | null; industry: string | null; status: string; nextEmailType: string; updatedAt: string; }
+export interface QueueData { initial: QueueItem[]; followUps: QueueFollowUp[]; hasBatchConfirmed: boolean; totalTomorrow: number; }
 export interface ProspectsData { prospects: ProspectItem[]; pagination: { page: number; total: number; totalPages: number; limit: number }; }
 
 export interface UnsubscribeItem { id: string; email: string; reason: string | null; createdAt: string; }
@@ -62,7 +68,7 @@ export interface KeywordsData { keywords: KeywordItem[]; total: number; }
 export const api = {
   overview: () => get<OverviewData>("/metrics/overview"),
   daily: () => get<DailyData>("/metrics/daily"),
-  scraperToday: () => get<ScraperTodayData>("/metrics/scraper/today"),
+  scraperToday: (date?: string) => get<ScraperTodayData>(`/metrics/scraper/today${date ? `?date=${date}` : ""}`),
   scraperDaily: () => get<{ days: ScraperDayPoint[] }>("/metrics/scraper/daily"),
   emails: (params: URLSearchParams) => get<EmailsData>(`/emails?${params}`),
   jobsStatus: () => get<JobsStatusData>("/jobs/status"),
@@ -71,6 +77,13 @@ export const api = {
   prospect: (id: string) => get<ProspectItem>(`/prospects/${id}`),
   unsubscribes: (params: URLSearchParams) => get<UnsubscribesData>(`/unsubscribes?${params}`),
   scraperKeywords: () => get<KeywordsData>("/metrics/scraper/keywords"),
+  queue: () => get<QueueData>("/queue"),
+  addNote: (prospectId: string, noteType: string, content: string) =>
+    fetch(`${BASE}/prospects/${prospectId}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ noteType, content }),
+    }).then((r) => r.json()),
   confirmBatch: (prospectIds: string[], date: string) =>
     fetch(`${BASE}/prospects/batch`, {
       method: "PATCH",

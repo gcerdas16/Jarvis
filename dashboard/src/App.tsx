@@ -6,6 +6,7 @@ import EmailsPage from "./pages/EmailsPage";
 import JobsPage from "./pages/JobsPage";
 import ProspectsPage from "./pages/ProspectsPage";
 import UnsubscribesPage from "./pages/UnsubscribesPage";
+import QueuePage from "./pages/QueuePage";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/prospects" element={<ProspectsPage />} />
         <Route path="/unsubscribes" element={<UnsubscribesPage />} />
+        <Route path="/queue" element={<QueuePage />} />
       </Routes>
     </Layout>
   );

@@ -6,23 +6,32 @@ import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { relativeTime } from "../lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function ScrapersPage() {
   const [data, setData] = useState<ScraperTodayData | null>(null);
   const [daily, setDaily] = useState<{ date: string; leads: number }[]>([]);
   const [keywords, setKeywords] = useState<KeywordItem[]>([]);
   const [kwFilter, setKwFilter] = useState("");
+  const [selectedDate, setSelectedDate] = useState(todayISO());
   const [loading, setLoading] = useState(true);
 
+  const isToday = selectedDate === todayISO();
+
   async function load() {
-    const [td, dl, kw] = await Promise.all([api.scraperToday(), api.scraperDaily(), api.scraperKeywords()]);
+    setLoading(true);
+    const dateParam = isToday ? undefined : selectedDate;
+    const [td, dl, kw] = await Promise.all([api.scraperToday(dateParam), api.scraperDaily(), api.scraperKeywords()]);
     setData(td);
     setDaily(dl.days);
     setKeywords(kw.keywords);
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
-  useAutoRefresh(load);
+  useEffect(() => { load(); }, [selectedDate]);
+  useAutoRefresh(isToday ? load : () => {});
 
   if (loading) return <div className="p-6 text-slate-500 text-sm">Cargando...</div>;
   if (!data) return <div className="p-6 text-red-500 text-sm">Error al cargar datos.</div>;
@@ -34,7 +43,11 @@ export default function ScrapersPage() {
           <h1 className="text-xl font-extrabold text-slate-900 dark:text-white">Scrapers</h1>
           <p className="text-xs text-slate-500 mt-0.5">Corre automáticamente L-V 7:42am</p>
         </div>
-        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />Activo</span>
+        <div className="flex items-center gap-3">
+          <input type="date" value={selectedDate} max={todayISO()} onChange={(e) => setSelectedDate(e.target.value)}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 outline-none" />
+          {isToday && <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />Activo</span>}
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-3">

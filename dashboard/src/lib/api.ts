@@ -46,6 +46,7 @@ export interface ProspectItem {
   id: string; email: string; companyName: string | null; industry: string | null;
   status: string; createdAt: string; updatedAt: string; website?: string | null;
   companyType?: string | null; description?: string | null;
+  keyword?: string | null; searchType?: string | null;
   source: { name: string; type: string };
   emailsSent?: { id: string; emailType: string; subject: string; sentAt: string; events: { eventType: string; occurredAt: string }[] }[];
   responses?: { id: string; receivedAt: string; bodyPreview: string | null }[];
@@ -76,6 +77,7 @@ export const api = {
   jobsHistory: (params: URLSearchParams) => get<JobsHistoryData>(`/jobs/history?${params}`),
   prospects: (params: URLSearchParams) => get<ProspectsData>(`/prospects?${params}`),
   prospect: (id: string) => get<ProspectItem>(`/prospects/${id}`),
+  newProspectStats: () => get<{ total: number; recentWeek: number; bySource: { source: string; count: number }[]; bySearchType: { searchType: string; count: number }[]; byIndustry: { industry: string; count: number }[] }>("/prospects/new/stats"),
   unsubscribes: (params: URLSearchParams) => get<UnsubscribesData>(`/unsubscribes?${params}`),
   scraperKeywords: () => get<KeywordsData>("/metrics/scraper/keywords"),
   queue: () => get<QueueData>("/queue"),

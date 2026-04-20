@@ -1,0 +1,136 @@
+import { useState } from "react";
+import { PaperPlaneTilt, ChatText } from "@phosphor-icons/react";
+import { api, ProspectItem, ProspectNote } from "../../lib/api";
+import { Badge } from "./Badge";
+import { formatDate } from "../../lib/utils";
+
+export const NOTE_TYPES = [
+  { value: "GENERAL", label: "Nota", color: "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300" },
+  { value: "NOT_INTERESTED", label: "No interesado", color: "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300" },
+  { value: "MEETING", label: "Reunión", color: "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" },
+  { value: "DEMO", label: "Demo", color: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" },
+] as const;
+
+type NoteType = typeof NOTE_TYPES[number]["value"];
+
+export function noteLabel(type: string) {
+  return NOTE_TYPES.find((n) => n.value === type)?.label ?? type;
+}
+export function noteColors(type: string) {
+  return NOTE_TYPES.find((n) => n.value === type)?.color ?? "bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300";
+}
+
+export function ProspectDrawerContent({ drawerData, onNoteAdded }: { drawerData: ProspectItem; onNoteAdded: () => void }) {
+  const [noteType, setNoteType] = useState<NoteType>("GENERAL");
+  const [noteText, setNoteText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submitNote() {
+    if (!noteText.trim()) return;
+    setSaving(true);
+    await api.addNote(drawerData.id, noteType, noteText.trim());
+    setNoteText("");
+    setSaving(false);
+    onNoteAdded();
+  }
+
+  type TLItem =
+    | { kind: "email"; id: string; emailType: string; subject: string; sentAt: string; events: { eventType: string; occurredAt: string }[]; date: string }
+    | { kind: "response"; id: string; receivedAt: string; bodyPreview: string | null; date: string }
+    | { kind: "note"; id: string; noteType: string; content: string; createdAt: string; date: string };
+
+  const timeline: TLItem[] = [
+    ...(drawerData.emailsSent?.map((e) => ({ kind: "email" as const, ...e, date: e.sentAt })) ?? []),
+    ...(drawerData.responses?.map((r) => ({ kind: "response" as const, ...r, date: r.receivedAt })) ?? []),
+    ...((drawerData.notes as ProspectNote[] | undefined)?.map((n) => ({ kind: "note" as const, ...n, date: n.createdAt })) ?? []),
+  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  return (
+    <>
+      {/* Company info */}
+      <div>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Empresa</p>
+        <div className="space-y-1.5 text-xs">
+          <div className="flex justify-between"><span className="text-slate-500">Industria</span><span className="font-semibold">{drawerData.industry ?? "—"}</span></div>
+          {drawerData.companyType && <div className="flex justify-between"><span className="text-slate-500">Tipo</span><span className="font-semibold capitalize">{drawerData.companyType}</span></div>}
+          <div className="flex justify-between"><span className="text-slate-500">Fuente</span><span className="font-semibold">{drawerData.source.name}</span></div>
+          {(drawerData as any).keyword && <div className="flex justify-between"><span className="text-slate-500">Keyword</span><span className="font-semibold">{(drawerData as any).keyword}</span></div>}
+          {(drawerData as any).searchType && <div className="flex justify-between"><span className="text-slate-500">Tipo búsqueda</span><span className="font-semibold capitalize">{(drawerData as any).searchType}</span></div>}
+          {drawerData.website && <div className="flex justify-between"><span className="text-slate-500">Web</span><a href={drawerData.website} target="_blank" rel="noreferrer" className="font-semibold text-blue-500 hover:underline truncate max-w-40">{drawerData.website}</a></div>}
+          <div className="flex justify-between"><span className="text-slate-500">Estado</span><Badge status={drawerData.status} /></div>
+          <div className="flex justify-between"><span className="text-slate-500">Agregado</span><span>{formatDate(drawerData.createdAt)}</span></div>
+        </div>
+        {drawerData.description && (
+          <div className="mt-3 p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{drawerData.description}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Timeline */}
+      <div>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Línea de tiempo</p>
+        {timeline.length === 0 && <p className="text-xs text-slate-400 text-center py-2">Sin actividad aún</p>}
+        <div className="space-y-2">
+          {timeline.map((item, i) => {
+            if (item.kind === "email") return (
+              <div key={item.id} className={`rounded-lg p-2.5 border-l-2 ${item.emailType === "INITIAL" ? "bg-blue-50 dark:bg-blue-900/20 border-blue-400" : "bg-amber-50 dark:bg-amber-900/20 border-amber-400"}`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{item.emailType === "INITIAL" ? "Email inicial" : item.emailType.replace(/_/g, " ")}</p>
+                  <span className="text-[10px] text-slate-400">{formatDate(item.sentAt)}</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5 truncate" title={item.subject}>{item.subject}</p>
+                {item.events.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {item.events.map((ev, j) => (
+                      <span key={j} className="text-[10px] px-1.5 py-0.5 rounded bg-white/60 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 font-medium">{ev.eventType}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+            if (item.kind === "response") return (
+              <div key={item.id} className="bg-emerald-50 dark:bg-emerald-900/20 border-l-2 border-emerald-500 rounded-lg p-2.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Respondió</p>
+                  <span className="text-[10px] text-slate-400">{formatDate(item.receivedAt)}</span>
+                </div>
+                {item.bodyPreview && <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">{item.bodyPreview}</p>}
+              </div>
+            );
+            return (
+              <div key={item.id + i} className={`rounded-lg p-2.5 border-l-2 border-slate-300 dark:border-slate-600 ${noteColors(item.noteType)}`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold">{noteLabel(item.noteType)}</p>
+                  <span className="text-[10px] text-slate-400">{formatDate(item.createdAt)}</span>
+                </div>
+                <p className="text-[11px] mt-1 leading-relaxed">{item.content}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Add note */}
+      <div>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1.5"><ChatText size={12} />Agregar nota</p>
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {NOTE_TYPES.map((nt) => (
+            <button key={nt.value} onClick={() => setNoteType(nt.value)}
+              className={`text-[11px] px-2.5 py-1 rounded-full font-medium border transition-all ${noteType === nt.value ? `${nt.color} border-current` : "border-transparent text-slate-400 hover:text-slate-600"}`}>
+              {nt.label}
+            </button>
+          ))}
+        </div>
+        <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} rows={3}
+          placeholder="Escribe el detalle aquí..."
+          className="w-full text-xs p-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 outline-none resize-none focus:border-blue-400 transition-colors" />
+        <button onClick={submitNote} disabled={!noteText.trim() || saving}
+          className="mt-2 w-full flex items-center justify-center gap-1.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold py-2 rounded-lg transition-colors">
+          <PaperPlaneTilt size={12} />
+          {saving ? "Guardando..." : "Guardar nota"}
+        </button>
+      </div>
+    </>
+  );
+}

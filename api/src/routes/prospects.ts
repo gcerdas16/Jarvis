@@ -60,6 +60,54 @@ prospectsRouter.get("/", async (req, res) => {
   }
 });
 
+prospectsRouter.get("/new/stats", async (_req, res) => {
+  try {
+    const [total, bySource, bySearchType, byIndustry, recent] = await Promise.all([
+      prisma.prospect.count({ where: { status: "NEW" } }),
+      prisma.prospect.groupBy({
+        by: ["sourceId"],
+        where: { status: "NEW" },
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+      }),
+      prisma.prospect.groupBy({
+        by: ["searchType"],
+        where: { status: "NEW" },
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+      }),
+      prisma.prospect.groupBy({
+        by: ["industry"],
+        where: { status: "NEW", industry: { not: null } },
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+        take: 8,
+      }),
+      prisma.prospect.count({
+        where: { status: "NEW", createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+      }),
+    ]);
+
+    const sourceIds = bySource.map((s) => s.sourceId);
+    const sources = await prisma.source.findMany({ where: { id: { in: sourceIds } }, select: { id: true, name: true } });
+    const sourceMap = Object.fromEntries(sources.map((s) => [s.id, s.name]));
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        recentWeek: recent,
+        bySource: bySource.map((s) => ({ source: sourceMap[s.sourceId] ?? s.sourceId, count: s._count.id })),
+        bySearchType: bySearchType.map((s) => ({ searchType: s.searchType ?? "desconocido", count: s._count.id })),
+        byIndustry: byIndustry.map((s) => ({ industry: s.industry ?? "—", count: s._count.id })),
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, error: "Failed to fetch new prospect stats" });
+  }
+});
+
 prospectsRouter.get("/:id", async (req, res) => {
   try {
     const prospect = await prisma.prospect.findUnique({

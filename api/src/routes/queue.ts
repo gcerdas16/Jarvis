@@ -3,6 +3,44 @@ import { prisma } from "../utils/db";
 
 export const queueRouter = Router();
 
+// Number of business days to project ahead in /week
+const WEEK_DAYS = 5;
+
+// Days to wait before each follow-up after the previous email
+const FOLLOWUP_CADENCE: Record<string, { days: number; nextType: string; templateKey: string }> = {
+  CONTACTED:    { days: 3, nextType: "FOLLOW_UP_1", templateKey: "followUp1" },
+  FOLLOW_UP_1:  { days: 5, nextType: "FOLLOW_UP_2", templateKey: "followUp2" },
+  FOLLOW_UP_2:  { days: 7, nextType: "FOLLOW_UP_3", templateKey: "followUp3" },
+};
+
+function startOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+function isWeekend(d: Date): boolean {
+  const day = d.getDay();
+  return day === 0 || day === 6;
+}
+
+// Returns the next N business days starting from `from` (inclusive)
+function nextBusinessDays(from: Date, count: number): Date[] {
+  const out: Date[] = [];
+  let cursor = startOfDay(from);
+  while (out.length < count) {
+    if (!isWeekend(cursor)) out.push(new Date(cursor));
+    cursor = addDays(cursor, 1);
+  }
+  return out;
+}
+
 // GET /api/queue — tomorrow's planned sends + campaign + limits
 queueRouter.get("/", async (_req, res) => {
   try {
@@ -93,5 +131,132 @@ queueRouter.get("/", async (_req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ success: false, error: "Failed to fetch queue" });
+  }
+});
+
+// GET /api/queue/week — projection of next 5 business days
+// Each prospect appears in exactly one day's bucket: the FIRST business day on
+// which it becomes due. Daily limit is enforced per day (initials first,
+// follow-ups fill remaining slots).
+queueRouter.get("/week", async (_req, res) => {
+  try {
+    const tomorrow = startOfDay(addDays(new Date(), 1));
+    const days = nextBusinessDays(tomorrow, WEEK_DAYS);
+    const weekEnd = addDays(days[days.length - 1], 1);
+
+    const [warmup, campaign, newProspects, candidateFollowUps] = await Promise.all([
+      prisma.warmupState.findFirst(),
+      prisma.campaign.findFirst({ where: { isActive: true } }),
+      prisma.prospect.findMany({
+        where: { status: "NEW" },
+        select: {
+          id: true, email: true, companyName: true, website: true, industry: true,
+          leadTier: true, country: true, createdAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.prospect.findMany({
+        where: { status: { in: ["CONTACTED", "FOLLOW_UP_1", "FOLLOW_UP_2"] } },
+        select: {
+          id: true, email: true, companyName: true, industry: true,
+          status: true, updatedAt: true, leadTier: true,
+        },
+      }),
+    ]);
+
+    const dailyLimit = warmup?.currentDailyLimit ?? 50;
+
+    // Bucket follow-ups by their first-due business day
+    type FollowUpItem = {
+      id: string; email: string; companyName: string | null; industry: string | null;
+      status: string; updatedAt: Date; nextEmailType: string;
+      hasTemplate: boolean; isOverdue: boolean; leadTier: string | null;
+    };
+    const followUpsByDay: FollowUpItem[][] = days.map(() => []);
+
+    for (const p of candidateFollowUps) {
+      const cadence = FOLLOWUP_CADENCE[p.status];
+      if (!cadence) continue;
+
+      const dueDate = startOfDay(addDays(p.updatedAt, cadence.days));
+      let bucketIdx = -1;
+      let isOverdue = false;
+
+      if (dueDate < tomorrow) {
+        // Overdue: assign to first day in projection
+        bucketIdx = 0;
+        isOverdue = true;
+      } else if (dueDate < weekEnd) {
+        // Find the first business day on or after dueDate
+        for (let i = 0; i < days.length; i++) {
+          if (days[i].getTime() >= dueDate.getTime()) {
+            bucketIdx = i;
+            break;
+          }
+        }
+      }
+
+      if (bucketIdx === -1) continue; // Outside this week
+
+      const hasTemplate = !!(campaign as any)?.[cadence.templateKey];
+      followUpsByDay[bucketIdx].push({
+        id: p.id, email: p.email, companyName: p.companyName, industry: p.industry,
+        status: p.status, updatedAt: p.updatedAt, nextEmailType: cadence.nextType,
+        hasTemplate, isOverdue, leadTier: p.leadTier,
+      });
+    }
+
+    // Sort each day's follow-ups by overdue first, then oldest updatedAt
+    for (const bucket of followUpsByDay) {
+      bucket.sort((a, b) => {
+        if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
+        return a.updatedAt.getTime() - b.updatedAt.getTime();
+      });
+    }
+
+    // Slice initials per day from the FIFO NEW pool
+    const dayBlocks = days.map((date, dayIdx) => {
+      const initialStart = dayIdx * dailyLimit;
+      const initialSlice = newProspects.slice(initialStart, initialStart + dailyLimit);
+      const initialCapped = initialSlice; // initials always within limit by construction
+
+      const remainingSlots = Math.max(0, dailyLimit - initialCapped.length);
+      const followUpsAll = followUpsByDay[dayIdx];
+      const followUpsCapped = followUpsAll.slice(0, remainingSlots);
+      const followUpsOverflow = Math.max(0, followUpsAll.length - followUpsCapped.length);
+
+      return {
+        date: date.toISOString().slice(0, 10),
+        weekday: date.toLocaleDateString("es-CR", { weekday: "long" }),
+        dayLabel: date.toLocaleDateString("es-CR", { day: "numeric", month: "short" }),
+        initial: initialCapped.map((p) => ({
+          id: p.id, email: p.email, companyName: p.companyName,
+          website: p.website, industry: p.industry, leadTier: p.leadTier,
+        })),
+        followUps: followUpsCapped,
+        initialCount: initialCapped.length,
+        followUpCount: followUpsCapped.length,
+        followUpOverflow: followUpsOverflow,
+        total: initialCapped.length + followUpsCapped.length,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        dailyLimit,
+        days: dayBlocks,
+        newPoolSize: newProspects.length,
+        campaign: campaign ? { id: campaign.id, name: campaign.name } : null,
+        cadence: {
+          followUp1Days: FOLLOWUP_CADENCE.CONTACTED.days,
+          followUp2Days: FOLLOWUP_CADENCE.FOLLOW_UP_1.days,
+          followUp3Days: FOLLOWUP_CADENCE.FOLLOW_UP_2.days,
+        },
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, error: "Failed to fetch week projection" });
   }
 });

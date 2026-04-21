@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { MagnifyingGlass, CaretRight, CaretUp, CaretDown, ArrowLeft, ArrowRight } from "@phosphor-icons/react";
-import { api, ProspectItem } from "../lib/api";
+import { MagnifyingGlass, CaretRight, CaretUp, CaretDown, ArrowLeft, ArrowRight, X } from "@phosphor-icons/react";
+import { api, ProspectItem, FilterOptions } from "../lib/api";
 import { Badge } from "../components/ui/Badge";
 import { Drawer } from "../components/ui/Drawer";
 import { ProspectDrawerContent } from "../components/ui/ProspectDrawer";
@@ -9,7 +9,17 @@ import { relativeTime, todayISO, displayCompany } from "../lib/utils";
 const STATUS_OPTIONS = ["", "NEW", "CONTACTED", "FOLLOW_UP_1", "FOLLOW_UP_2", "FOLLOW_UP_3", "RESPONDED", "BOUNCED", "UNSUBSCRIBED"];
 const LIMIT = 25;
 
-type SortCol = "email" | "companyName" | "industry" | "status" | "updatedAt";
+type SortCol = "email" | "companyName" | "industry" | "status" | "updatedAt" | "maturityScore";
+
+function TierBadge({ tier }: { tier: string | null | undefined }) {
+  if (!tier) return <span className="text-slate-300">—</span>;
+  const colors: Record<string, string> = {
+    N1: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    N2: "bg-amber-100 text-amber-700 border-amber-200",
+    N3: "bg-slate-100 text-slate-600 border-slate-200",
+  };
+  return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${colors[tier] ?? colors.N3}`}>{tier}</span>;
+}
 
 function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: "asc" | "desc" }) {
   if (col !== sortCol) return <CaretDown size={10} className="text-slate-300 ml-0.5 inline" />;
@@ -25,6 +35,11 @@ export default function ProspectsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [tierFilter, setTierFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
+  const [techStackFilter, setTechStackFilter] = useState("");
+  const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [sortCol, setSortCol] = useState<SortCol>("updatedAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -33,6 +48,7 @@ export default function ProspectsPage() {
   const [loading, setLoading] = useState(true);
 
   const totalPages = Math.ceil(total / LIMIT);
+  const activeFilterCount = [statusFilter, tierFilter, sourceFilter, countryFilter, techStackFilter].filter(Boolean).length;
 
   async function load() {
     setLoading(true);
@@ -44,14 +60,23 @@ export default function ProspectsPage() {
     });
     if (search) params.set("search", search);
     if (statusFilter) params.set("status", statusFilter);
+    if (tierFilter) params.set("tier", tierFilter);
+    if (sourceFilter) params.set("source", sourceFilter);
+    if (countryFilter) params.set("country", countryFilter);
+    if (techStackFilter) params.set("techStack", techStackFilter);
     const data = await api.prospects(params);
     setProspects(data.prospects);
     setTotal(data.pagination.total);
     setLoading(false);
   }
 
-  useEffect(() => { setPage(1); }, [search, statusFilter, sortCol, sortDir]);
-  useEffect(() => { load(); }, [page, search, statusFilter, sortCol, sortDir]);
+  function clearFilters() {
+    setStatusFilter(""); setTierFilter(""); setSourceFilter(""); setCountryFilter(""); setTechStackFilter("");
+  }
+
+  useEffect(() => { api.prospectFilterOptions().then(setFilterOptions).catch(() => {}); }, []);
+  useEffect(() => { setPage(1); }, [search, statusFilter, tierFilter, sourceFilter, countryFilter, techStackFilter, sortCol, sortDir]);
+  useEffect(() => { load(); }, [page, search, statusFilter, tierFilter, sourceFilter, countryFilter, techStackFilter, sortCol, sortDir]);
 
   async function openDrawer(p: ProspectItem) {
     setSelectedId(p.id);
@@ -88,18 +113,46 @@ export default function ProspectsPage() {
           <h1 className="text-xl font-extrabold text-slate-900 dark:text-white">Prospects</h1>
           <p className="text-xs text-slate-500 mt-0.5">{total.toLocaleString()} prospectos en total</p>
         </div>
-        <div className="flex items-center gap-2">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 outline-none">
-            <option value="">Todos los estados</option>
-            {STATUS_OPTIONS.filter(Boolean).map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <div className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800">
-            <MagnifyingGlass size={13} className="text-blue-500" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por email..."
-              className="text-xs text-slate-700 dark:text-slate-300 bg-transparent border-none outline-none w-48" />
-          </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800">
+          <MagnifyingGlass size={13} className="text-blue-500" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar email o empresa..."
+            className="text-xs text-slate-700 dark:text-slate-300 bg-transparent border-none outline-none w-56" />
         </div>
+      </div>
+
+      {/* Filter row */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 mr-1">Filtrar:</span>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+          className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 outline-none">
+          <option value="">Estado: todos</option>
+          {STATUS_OPTIONS.filter(Boolean).map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)}
+          className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 outline-none">
+          <option value="">Tier: todos</option>
+          {filterOptions?.tiers.map((t) => <option key={t.value} value={t.value}>{t.value} ({t.count})</option>)}
+        </select>
+        <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}
+          className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 outline-none">
+          <option value="">Fuente: todas</option>
+          {filterOptions?.sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <select value={countryFilter} onChange={(e) => setCountryFilter(e.target.value)}
+          className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 outline-none">
+          <option value="">País: todos</option>
+          {filterOptions?.countries.map((c) => <option key={c.value} value={c.value}>{c.value} ({c.count})</option>)}
+        </select>
+        <select value={techStackFilter} onChange={(e) => setTechStackFilter(e.target.value)}
+          className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 outline-none">
+          <option value="">Tech stack: todos</option>
+          {filterOptions?.techStacks.map((t) => <option key={t.value} value={t.value}>{t.value} ({t.count})</option>)}
+        </select>
+        {activeFilterCount > 0 && (
+          <button onClick={clearFilters} className="text-xs px-2.5 py-1.5 text-slate-500 hover:text-slate-700 flex items-center gap-1">
+            <X size={11} />Limpiar ({activeFilterCount})
+          </button>
+        )}
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -109,10 +162,13 @@ export default function ProspectsPage() {
               <th className="py-2 px-3 w-8">
                 <input type="checkbox" onChange={(e) => setSelected(e.target.checked ? new Set(prospects.map((p) => p.id)) : new Set())} className="w-3 h-3" />
               </th>
-              {(["email", "companyName", "industry", "status", "updatedAt"] as SortCol[]).map((col) => (
+              {(["email", "companyName", "industry", "status", "maturityScore", "updatedAt"] as SortCol[]).map((col) => (
                 <th key={col} className="py-2 px-3 text-left font-semibold uppercase tracking-wide cursor-pointer hover:text-slate-600 select-none"
                   onClick={() => toggleSort(col)}>
-                  {col === "companyName" ? "Empresa" : col === "updatedAt" ? "Último contacto" : col.charAt(0).toUpperCase() + col.slice(1)}
+                  {col === "companyName" ? "Empresa"
+                    : col === "updatedAt" ? "Último contacto"
+                    : col === "maturityScore" ? "Tier"
+                    : col.charAt(0).toUpperCase() + col.slice(1)}
                   <SortIcon col={col} sortCol={sortCol} sortDir={sortDir} />
                 </th>
               ))}
@@ -123,7 +179,7 @@ export default function ProspectsPage() {
             {loading ? (
               <tr><td colSpan={7} className="py-8 text-center text-slate-400">Cargando...</td></tr>
             ) : prospects.length === 0 ? (
-              <tr><td colSpan={7} className="py-8 text-center text-slate-400">Sin prospectos</td></tr>
+              <tr><td colSpan={8} className="py-8 text-center text-slate-400">Sin prospectos</td></tr>
             ) : prospects.map((p) => (
               <tr key={p.id} className={`border-b border-slate-50 dark:border-slate-700/30 hover:bg-slate-50 dark:hover:bg-slate-700/20 ${selectedId === p.id ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}>
                 <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
@@ -133,6 +189,7 @@ export default function ProspectsPage() {
                 <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{displayCompany(p.companyName, p.website, p.email)}</td>
                 <td className="py-2 px-3 text-slate-500">{p.industry ?? "—"}</td>
                 <td className="py-2 px-3"><Badge status={p.status} /></td>
+                <td className="py-2 px-3"><TierBadge tier={p.leadTier} /></td>
                 <td className="py-2 px-3 text-slate-400">{relativeTime(p.updatedAt)}</td>
                 <td className="py-2 px-3 cursor-pointer" onClick={() => openDrawer(p)}><CaretRight size={12} className="text-slate-300" /></td>
               </tr>

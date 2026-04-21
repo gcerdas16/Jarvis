@@ -8,6 +8,7 @@ import ProspectsPage from "./pages/ProspectsPage";
 import UnsubscribesPage from "./pages/UnsubscribesPage";
 import QueuePage from "./pages/QueuePage";
 import NewProspectsPage from "./pages/NewProspectsPage";
+import WeekPage from "./pages/WeekPage";
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/prospects" element={<ProspectsPage />} />
         <Route path="/unsubscribes" element={<UnsubscribesPage />} />
         <Route path="/queue" element={<QueuePage />} />
+        <Route path="/semana" element={<WeekPage />} />
         <Route path="/new-prospects" element={<NewProspectsPage />} />
       </Routes>
     </Layout>

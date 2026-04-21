@@ -10,8 +10,11 @@ const listQuerySchema = z.object({
   status: z.string().optional(),
   source: z.string().optional(),
   companyType: z.string().optional(),
+  tier: z.enum(["N1", "N2", "N3"]).optional(),
+  country: z.string().optional(),
+  techStack: z.string().optional(),
   search: z.string().optional(),
-  sortBy: z.enum(["email", "companyName", "industry", "status", "updatedAt"]).default("updatedAt"),
+  sortBy: z.enum(["email", "companyName", "industry", "status", "updatedAt", "maturityScore"]).default("updatedAt"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
 });
 
@@ -24,7 +27,15 @@ prospectsRouter.get("/", async (req, res) => {
       ...(query.status && { status: query.status as any }),
       ...(query.source && { sourceId: query.source }),
       ...(query.companyType && { companyType: query.companyType }),
-      ...(query.search && { email: { contains: query.search, mode: "insensitive" as const } }),
+      ...(query.tier && { leadTier: query.tier }),
+      ...(query.country && { country: query.country }),
+      ...(query.techStack && { techStack: query.techStack }),
+      ...(query.search && {
+        OR: [
+          { email: { contains: query.search, mode: "insensitive" as const } },
+          { companyName: { contains: query.search, mode: "insensitive" as const } },
+        ],
+      }),
     };
 
     const [prospects, total] = await Promise.all([
@@ -57,6 +68,48 @@ prospectsRouter.get("/", async (req, res) => {
         ? error.errors.map((e) => e.message).join(", ")
         : "Failed to fetch prospects",
     });
+  }
+});
+
+// Meta data needed to populate filter dropdowns on the prospects page
+prospectsRouter.get("/filter-options", async (_req, res) => {
+  try {
+    const [sources, countries, techStacks, tiers] = await Promise.all([
+      prisma.source.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, type: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.prospect.groupBy({
+        by: ["country"],
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+      }),
+      prisma.prospect.groupBy({
+        by: ["techStack"],
+        where: { techStack: { not: null } },
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+      }),
+      prisma.prospect.groupBy({
+        by: ["leadTier"],
+        where: { leadTier: { not: null } },
+        _count: { id: true },
+      }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        sources: sources.map((s) => ({ id: s.id, name: s.name, type: s.type })),
+        countries: countries.map((c) => ({ value: c.country, count: c._count.id })),
+        techStacks: techStacks.map((t) => ({ value: t.techStack, count: t._count.id })),
+        tiers: tiers.map((t) => ({ value: t.leadTier, count: t._count.id })),
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, error: "Failed to fetch filter options" });
   }
 });
 

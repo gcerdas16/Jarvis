@@ -47,16 +47,48 @@ export interface ProspectItem {
   status: string; createdAt: string; updatedAt: string; website?: string | null;
   companyType?: string | null; description?: string | null;
   keyword?: string | null; searchType?: string | null;
+  country?: string | null; techStack?: string | null;
+  leadTier?: string | null; maturityScore?: number | null;
+  instagram?: string | null; facebook?: string | null; linkedin?: string | null;
+  whatsapp?: string | null; tiktok?: string | null;
   source: { name: string; type: string };
   emailsSent?: { id: string; emailType: string; subject: string; sentAt: string; events: { eventType: string; occurredAt: string }[] }[];
   responses?: { id: string; receivedAt: string; bodyPreview: string | null }[];
   notes?: ProspectNote[];
 }
 
+export interface FilterOptions {
+  sources: { id: string; name: string; type: string }[];
+  countries: { value: string; count: number }[];
+  techStacks: { value: string; count: number }[];
+  tiers: { value: string; count: number }[];
+}
+
 export interface QueueItem { id: string; email: string; companyName: string | null; industry: string | null; source: string; }
 export interface QueueFollowUp { id: string; email: string; companyName: string | null; industry: string | null; status: string; nextEmailType: string; updatedAt: string; hasTemplate: boolean; }
 export interface QueueCampaign { id: string; name: string; subjectLine: string; bodyTemplate: string; followUp1: string | null; followUp2: string | null; followUp3: string | null; }
 export interface QueueData { dailyLimit: number; campaign: QueueCampaign | null; initial: QueueItem[]; followUps: QueueFollowUp[]; allFollowUpsDue: number; hasBatchConfirmed: boolean; totalTomorrow: number; }
+
+export interface WeekDayInitial {
+  id: string; email: string; companyName: string | null; website: string | null;
+  industry: string | null; leadTier: string | null;
+}
+export interface WeekDayFollowUp {
+  id: string; email: string; companyName: string | null; industry: string | null;
+  status: string; updatedAt: string; nextEmailType: string;
+  hasTemplate: boolean; isOverdue: boolean; leadTier: string | null;
+}
+export interface WeekDay {
+  date: string; weekday: string; dayLabel: string;
+  initial: WeekDayInitial[]; followUps: WeekDayFollowUp[];
+  initialCount: number; followUpCount: number; followUpOverflow: number; total: number;
+}
+export interface WeekData {
+  dailyLimit: number; newPoolSize: number;
+  campaign: { id: string; name: string } | null;
+  days: WeekDay[];
+  cadence: { followUp1Days: number; followUp2Days: number; followUp3Days: number };
+}
 export interface ProspectsData { prospects: ProspectItem[]; pagination: { page: number; total: number; totalPages: number; limit: number }; }
 
 export interface UnsubscribeItem { id: string; email: string; reason: string | null; createdAt: string; }
@@ -77,10 +109,12 @@ export const api = {
   jobsHistory: (params: URLSearchParams) => get<JobsHistoryData>(`/jobs/history?${params}`),
   prospects: (params: URLSearchParams) => get<ProspectsData>(`/prospects?${params}`),
   prospect: (id: string) => get<ProspectItem>(`/prospects/${id}`),
+  prospectFilterOptions: () => get<FilterOptions>("/prospects/filter-options"),
   newProspectStats: () => get<{ total: number; recentWeek: number; bySource: { source: string; count: number }[]; bySearchType: { searchType: string; count: number }[]; byIndustry: { industry: string; count: number }[] }>("/prospects/new/stats"),
   unsubscribes: (params: URLSearchParams) => get<UnsubscribesData>(`/unsubscribes?${params}`),
   scraperKeywords: () => get<KeywordsData>("/metrics/scraper/keywords"),
   queue: () => get<QueueData>("/queue"),
+  queueWeek: () => get<WeekData>("/queue/week"),
   addNote: (prospectId: string, noteType: string, content: string) =>
     fetch(`${BASE}/prospects/${prospectId}/notes`, {
       method: "POST",

@@ -1,9 +1,10 @@
-import { House, Bug, Envelope, ClockClockwise, Users, Lightning, Moon, Sun, ProhibitInset, Queue, Sparkle } from "@phosphor-icons/react";
+import { House, Bug, Envelope, ClockClockwise, Users, Lightning, Moon, Sun, ProhibitInset, Queue, Sparkle, Calendar } from "@phosphor-icons/react";
 import { useTheme } from "../../hooks/useTheme";
 
 const NAV = [
   { label: "Overview", icon: House, href: "/" },
   { label: "Cola mañana", icon: Queue, href: "/queue" },
+  { label: "Semana", icon: Calendar, href: "/semana" },
   { label: "Scrapers", icon: Bug, href: "/scrapers" },
   { label: "Emails", icon: Envelope, href: "/emails" },
   { label: "Jobs", icon: ClockClockwise, href: "/jobs" },

@@ -4,7 +4,7 @@ import { api, ProspectItem } from "../lib/api";
 import { Badge } from "../components/ui/Badge";
 import { Drawer } from "../components/ui/Drawer";
 import { ProspectDrawerContent } from "../components/ui/ProspectDrawer";
-import { relativeTime, todayISO } from "../lib/utils";
+import { relativeTime, todayISO, displayCompany } from "../lib/utils";
 
 const STATUS_OPTIONS = ["", "NEW", "CONTACTED", "FOLLOW_UP_1", "FOLLOW_UP_2", "FOLLOW_UP_3", "RESPONDED", "BOUNCED", "UNSUBSCRIBED"];
 const LIMIT = 25;
@@ -130,7 +130,7 @@ export default function ProspectsPage() {
                   <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} className="w-3 h-3" />
                 </td>
                 <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200 cursor-pointer" onClick={() => openDrawer(p)}>{p.email}</td>
-                <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{p.companyName ?? "—"}</td>
+                <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{displayCompany(p.companyName, p.website, p.email)}</td>
                 <td className="py-2 px-3 text-slate-500">{p.industry ?? "—"}</td>
                 <td className="py-2 px-3"><Badge status={p.status} /></td>
                 <td className="py-2 px-3 text-slate-400">{relativeTime(p.updatedAt)}</td>

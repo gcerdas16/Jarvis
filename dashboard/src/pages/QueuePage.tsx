@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle, Warning, Envelope, ArrowRight } from "@phosphor-icons/react";
 import { api, QueueData } from "../lib/api";
+import { displayCompany } from "../lib/utils";
 
 function daysSince(dateStr: string) {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
@@ -156,7 +157,7 @@ export default function QueuePage() {
               ) : data.initial.map((p) => (
                 <tr key={p.id} className="border-b border-slate-50 dark:border-slate-700/30 hover:bg-slate-50 dark:hover:bg-slate-700/20">
                   <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200 max-w-0 truncate w-36" title={p.email}>{p.email}</td>
-                  <td className="py-2 px-3 text-slate-500 truncate">{p.companyName ?? "—"}</td>
+                  <td className="py-2 px-3 text-slate-500 truncate">{displayCompany(p.companyName, null, p.email)}</td>
                   <td className="py-2 px-3 text-slate-400 truncate">{p.industry ?? "—"}</td>
                 </tr>
               ))}

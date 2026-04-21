@@ -21,3 +21,29 @@ export function formatDuration(ms: number | null): string {
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+/**
+ * Display a company name with smart fallbacks when companyName is null:
+ *   1. companyName            (best — actual extracted name)
+ *   2. website domain         (e.g. "acme.cr" from "https://www.acme.cr/")
+ *   3. email domain           (e.g. "acme.cr" from "info@acme.cr")
+ *   4. "—"                    (truly empty)
+ */
+export function displayCompany(
+  companyName: string | null | undefined,
+  website?: string | null,
+  email?: string | null,
+): string {
+  if (companyName && companyName.trim()) return companyName;
+  if (website) {
+    try {
+      const host = new URL(website.startsWith("http") ? website : `https://${website}`).hostname;
+      return host.replace(/^www\./, "");
+    } catch { /* fall through */ }
+  }
+  if (email && email.includes("@")) {
+    const domain = email.split("@")[1];
+    if (domain && !domain.endsWith(".local")) return domain;
+  }
+  return "—";
+}

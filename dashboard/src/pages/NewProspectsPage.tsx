@@ -3,7 +3,7 @@ import { MagnifyingGlass, CaretRight, ArrowLeft, ArrowRight } from "@phosphor-ic
 import { api, ProspectItem } from "../lib/api";
 import { Drawer } from "../components/ui/Drawer";
 import { ProspectDrawerContent } from "../components/ui/ProspectDrawer";
-import { relativeTime } from "../lib/utils";
+import { relativeTime, displayCompany } from "../lib/utils";
 
 const LIMIT = 50;
 
@@ -160,7 +160,7 @@ export default function NewProspectsPage() {
                 className={`border-b border-slate-50 dark:border-slate-700/30 hover:bg-slate-50 dark:hover:bg-slate-700/20 cursor-pointer ${selectedId === p.id ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}
                 onClick={() => openDrawer(p)}>
                 <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200">{p.email}</td>
-                <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{p.companyName ?? "—"}</td>
+                <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{displayCompany(p.companyName, p.website, p.email)}</td>
                 <td className="py-2 px-3 text-slate-500">{p.industry ?? "—"}</td>
                 <td className="py-2 px-3 text-slate-500 max-w-32 truncate" title={p.keyword ?? ""}>{p.keyword ?? "—"}</td>
                 <td className="py-2 px-3">

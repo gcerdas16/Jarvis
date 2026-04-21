@@ -6,7 +6,7 @@ import { Badge } from "../components/ui/Badge";
 import { Drawer } from "../components/ui/Drawer";
 import { DateRangePicker } from "../components/ui/DateRangePicker";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
-import { relativeTime, todayISO, formatDate } from "../lib/utils";
+import { relativeTime, todayISO, formatDate, displayCompany } from "../lib/utils";
 
 const TABS = ["all", "initial", "followup", "bounced", "replied"] as const;
 const TAB_LABELS: Record<string, string> = { all: "Todos", initial: "Nuevos", followup: "Follow-ups", bounced: "Bounces", replied: "Respondidos" };
@@ -101,7 +101,7 @@ export default function EmailsPage() {
                   <tr key={e.id} onClick={() => openDrawer(e)}
                     className={`border-b border-slate-50 dark:border-slate-700/30 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 ${selectedId === e.id ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}>
                     <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200">{e.prospect.email}</td>
-                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{e.prospect.companyName ?? "—"}</td>
+                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{displayCompany(e.prospect.companyName, null, e.prospect.email)}</td>
                     <td className="py-2 px-3 text-slate-500">{e.prospect.industry ?? "—"}</td>
                     <td className="py-2 px-3"><Badge status={e.emailType} /></td>
                     <td className="py-2 px-3"><Badge status={e.latestEvent?.eventType ?? e.prospect.status} /></td>

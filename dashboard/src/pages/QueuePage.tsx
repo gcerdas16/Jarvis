@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArrowClockwise } from "@phosphor-icons/react";
 import { api, QueueData, ProspectItem } from "../lib/api";
 import { TierBadge } from "../components/ui/TierBadge";
 import { Drawer } from "../components/ui/Drawer";
@@ -18,6 +19,7 @@ function tomorrowLabel() {
 export default function QueuePage() {
   const [data, setData] = useState<QueueData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawerData, setDrawerData] = useState<ProspectItem | null>(null);
@@ -29,6 +31,12 @@ export default function QueuePage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
 
   async function handleToggle() {
     if (!data || toggling) return;
@@ -60,6 +68,15 @@ export default function QueuePage() {
           <h1 className="text-xl font-extrabold text-slate-900 dark:text-white">Cola de mañana</h1>
           <p className="text-xs text-slate-500 mt-0.5 capitalize">{tomorrowLabel()} · Envíos automáticos a las 8:05 a.m.</p>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            title="Actualizar cola"
+            className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors"
+          >
+            <ArrowClockwise size={16} className={refreshing ? "animate-spin" : ""} />
+          </button>
         {/* Kill switch toggle */}
         <button
           onClick={handleToggle}
@@ -74,6 +91,7 @@ export default function QueuePage() {
           </div>
           <span>{toggling ? "..." : paused ? "Pausado" : "Activo"}</span>
         </button>
+        </div>
       </div>
 
       {/* Banner */}

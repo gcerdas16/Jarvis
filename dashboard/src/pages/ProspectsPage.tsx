@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { MagnifyingGlass, CaretRight, CaretUp, CaretDown, ArrowLeft, ArrowRight, X } from "@phosphor-icons/react";
+import { MagnifyingGlass, CaretRight, CaretUp, CaretDown, ArrowLeft, ArrowRight, X, Plus } from "@phosphor-icons/react";
 import { api, ProspectItem, FilterOptions } from "../lib/api";
 import { Drawer } from "../components/ui/Drawer";
 import { ProspectDrawerContent } from "../components/ui/ProspectDrawer";
 import { StatusDropdown } from "../components/ui/StatusDropdown";
 import { TierBadge } from "../components/ui/TierBadge";
+import { AddProspectModal } from "../components/ui/AddProspectModal";
 import { relativeTime, todayISO, displayCompany } from "../lib/utils";
 
 const STATUS_OPTIONS = [
@@ -14,6 +15,31 @@ const STATUS_OPTIONS = [
   "CLIENTE", "NO_INTERESADO", "REVISITAR",
 ];
 const LIMIT = 25;
+
+const STATUS_CARD_COLORS: Record<string, string> = {
+  NEW:               "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100",
+  CONTACTED:         "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100",
+  FOLLOW_UP_1:       "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100",
+  FOLLOW_UP_2:       "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100",
+  FOLLOW_UP_3:       "bg-red-50 text-red-700 border-red-200 hover:bg-red-100",
+  RESPONDED:         "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
+  BOUNCED:           "bg-red-50 text-red-500 border-red-100 hover:bg-red-100",
+  UNSUBSCRIBED:      "bg-slate-50 text-slate-400 border-slate-100 hover:bg-slate-100",
+  REUNION_AGENDADA:  "bg-green-50 text-green-700 border-green-200 hover:bg-green-100",
+  REUNION_REALIZADA: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
+  PROPUESTA_ENVIADA: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100",
+  CLIENTE:           "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100",
+  NO_INTERESADO:     "bg-red-50 text-red-600 border-red-200 hover:bg-red-100",
+  REVISITAR:         "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  NEW: "Nuevos", CONTACTED: "Contactados", FOLLOW_UP_1: "Follow-up 1",
+  FOLLOW_UP_2: "Follow-up 2", FOLLOW_UP_3: "Follow-up 3", RESPONDED: "Respondidos",
+  BOUNCED: "Rebotados", UNSUBSCRIBED: "Desuscritos", REUNION_AGENDADA: "Reunión agendada",
+  REUNION_REALIZADA: "Reunión realizada", PROPUESTA_ENVIADA: "Propuesta enviada",
+  CLIENTE: "Clientes", NO_INTERESADO: "No interesado", REVISITAR: "Revisitar",
+};
 
 type SortCol = "email" | "companyName" | "industry" | "status" | "updatedAt" | "maturityScore";
 
@@ -46,6 +72,7 @@ export default function ProspectsPage() {
   const [drawerData, setDrawerData] = useState<ProspectItem | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const totalPages = Math.ceil(total / LIMIT);
   const activeFilterCount = [statusFilter, tierFilter, sourceFilter, countryFilter, techStackFilter, industryFilter, companyTypeFilter, createdFrom, createdTo].filter(Boolean).length;
@@ -119,12 +146,40 @@ export default function ProspectsPage() {
           <h1 className="text-xl font-extrabold text-slate-900 dark:text-white">Prospects</h1>
           <p className="text-xs text-slate-500 mt-0.5">{total.toLocaleString()} prospectos en total</p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800">
-          <MagnifyingGlass size={13} className="text-blue-500" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar email o empresa..."
-            className="text-xs text-slate-700 dark:text-slate-300 bg-transparent border-none outline-none w-56" />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800">
+            <MagnifyingGlass size={13} className="text-blue-500" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar email o empresa..."
+              className="text-xs text-slate-700 dark:text-slate-300 bg-transparent border-none outline-none w-56" />
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg transition-colors"
+          >
+            <Plus size={13} weight="bold" />Agregar
+          </button>
         </div>
       </div>
+
+      {/* Status cards strip */}
+      {filterOptions?.statuses && filterOptions.statuses.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {filterOptions.statuses.filter((s) => s.count > 0).map((s) => {
+            const active = statusFilter === s.value;
+            const colors = STATUS_CARD_COLORS[s.value] ?? "bg-slate-50 text-slate-600 border-slate-200";
+            return (
+              <button
+                key={s.value}
+                onClick={() => setStatusFilter(active ? "" : s.value)}
+                className={`flex-shrink-0 flex flex-col items-center px-3.5 py-2 rounded-xl border text-xs font-semibold transition-all ${colors} ${active ? "ring-2 ring-offset-1 ring-blue-400 shadow-sm" : ""}`}
+              >
+                <span className="text-lg font-extrabold leading-tight">{s.count.toLocaleString()}</span>
+                <span className="mt-0.5 whitespace-nowrap opacity-80">{STATUS_LABELS[s.value] ?? s.value}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Filter row */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 flex flex-wrap items-center gap-2">
@@ -282,6 +337,13 @@ export default function ProspectsPage() {
           </button>
           <button onClick={() => setSelected(new Set())} className="text-xs text-slate-400 hover:text-slate-600">Cancelar</button>
         </div>
+      )}
+
+      {showAddModal && (
+        <AddProspectModal
+          onClose={() => setShowAddModal(false)}
+          onCreated={() => { load(); api.prospectFilterOptions().then(setFilterOptions).catch(() => {}); }}
+        />
       )}
     </div>
   );

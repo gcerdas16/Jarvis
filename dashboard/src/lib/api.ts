@@ -64,6 +64,7 @@ export interface FilterOptions {
   tiers: { value: string; count: number }[];
   industries: { value: string; count: number }[];
   companyTypes: { value: string; count: number }[];
+  statuses: { value: string; count: number }[];
 }
 
 export interface StatusHistoryItem {
@@ -166,4 +167,10 @@ export const api = {
     }).then((r) => r.json()),
   overviewByDate: (date: string) => get<OverviewData>(`/metrics/overview?date=${date}`),
   dailyByDays: (days: number) => get<DailyData>(`/metrics/daily?days=${days}`),
+  createProspect: (data: { email: string; companyName?: string; website?: string; industry?: string; companyType?: string; country?: string; description?: string }) =>
+    fetch(`${BASE}/prospects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).then((r) => r.json()),
 };

@@ -84,7 +84,7 @@ prospectsRouter.get("/", async (req, res) => {
 // Meta data needed to populate filter dropdowns on the prospects page
 prospectsRouter.get("/filter-options", async (_req, res) => {
   try {
-    const [sources, countries, techStacks, tiers, industries, companyTypes] = await Promise.all([
+    const [sources, countries, techStacks, tiers, industries, companyTypes, statuses] = await Promise.all([
       prisma.source.findMany({
         where: { isActive: true },
         select: { id: true, name: true, type: true },
@@ -119,6 +119,11 @@ prospectsRouter.get("/filter-options", async (_req, res) => {
         _count: { id: true },
         orderBy: { _count: { id: "desc" } },
       }),
+      prisma.prospect.groupBy({
+        by: ["status"],
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+      }),
     ]);
 
     res.json({
@@ -130,6 +135,7 @@ prospectsRouter.get("/filter-options", async (_req, res) => {
         tiers: tiers.map((t) => ({ value: t.leadTier, count: t._count.id })),
         industries: industries.map((i) => ({ value: i.industry!, count: i._count.id })),
         companyTypes: companyTypes.map((c) => ({ value: c.companyType!, count: c._count.id })),
+        statuses: statuses.map((s) => ({ value: s.status as string, count: s._count.id })),
       },
     });
   } catch (e) {
@@ -183,6 +189,55 @@ prospectsRouter.get("/new/stats", async (_req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ success: false, error: "Failed to fetch new prospect stats" });
+  }
+});
+
+const createProspectSchema = z.object({
+  email: z.string().email(),
+  companyName: z.string().max(255).optional(),
+  website: z.string().max(500).optional().nullable(),
+  industry: z.string().max(100).optional(),
+  companyType: z.string().max(100).optional(),
+  country: z.string().max(10).default("CR"),
+  description: z.string().max(2000).optional(),
+});
+
+prospectsRouter.post("/", async (req, res) => {
+  try {
+    const data = createProspectSchema.parse(req.body);
+
+    const existing = await prisma.prospect.findUnique({ where: { email: data.email } });
+    if (existing) {
+      res.status(409).json({ success: false, error: "Este email ya existe en el sistema" });
+      return;
+    }
+
+    const source = await prisma.source.upsert({
+      where: { name: "Manual" },
+      create: { name: "Manual", type: "manual" },
+      update: {},
+    });
+
+    const prospect = await prisma.prospect.create({
+      data: {
+        email: data.email,
+        companyName: data.companyName ?? null,
+        website: data.website || null,
+        industry: data.industry ?? null,
+        companyType: data.companyType ?? null,
+        country: data.country,
+        description: data.description ?? null,
+        sourceId: source.id,
+      },
+      include: { source: { select: { name: true, type: true } } },
+    });
+
+    res.status(201).json({ success: true, data: prospect });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error instanceof z.ZodError ? error.errors[0].message : "Failed to create prospect",
+    });
   }
 });
 

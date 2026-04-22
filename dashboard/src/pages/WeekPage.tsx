@@ -15,7 +15,8 @@ function DaySection({ day, dailyLimit, isToday, onProspectClick }: {
   onProspectClick: (id: string) => void;
 }) {
   const [open, setOpen] = useState(isToday);
-  const pct = Math.min((day.total / dailyLimit) * 100, 100);
+  const displayTotal = day.sentToday ? (day.sentToday.initial + day.sentToday.followUps) : day.total;
+  const pct = Math.min((displayTotal / dailyLimit) * 100, 100);
   const barColor = pct >= 100 ? "bg-amber-500" : "bg-blue-500";
 
   return (
@@ -32,13 +33,17 @@ function DaySection({ day, dailyLimit, isToday, onProspectClick }: {
           {day.weekday} {day.dayLabel}{isToday ? " — Hoy" : ""}
         </span>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">{day.initialCount} iniciales</span>
-          <span className="text-[11px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">{day.followUpCount} FU</span>
+          <span className="text-[11px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+            {day.sentToday ? day.sentToday.initial : day.initialCount} iniciales
+          </span>
+          <span className="text-[11px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
+            {day.sentToday ? day.sentToday.followUps : day.followUpCount} FU
+          </span>
         </div>
         <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
           <div className={`h-1.5 ${barColor} rounded-full`} style={{ width: `${pct}%` }} />
         </div>
-        <span className="text-xs text-slate-500 dark:text-slate-400 min-w-12 text-right">{day.total}/{dailyLimit}</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400 min-w-12 text-right">{displayTotal}/{dailyLimit}</span>
         <span className={`text-slate-400 text-sm transition-transform ${open ? "rotate-90" : ""}`}>›</span>
       </button>
 

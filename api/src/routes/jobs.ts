@@ -6,14 +6,22 @@ export const jobsRouter = Router();
 
 const CR_TZ = "America/Costa_Rica";
 
-function getNextWeekdayRun(hour: number, minute: number): string {
-  const now = new Date(new Date().toLocaleString("en-US", { timeZone: CR_TZ }));
+function getNextWeekdayRun(crHour: number, crMinute: number): string {
+  const CR_OFFSET = 6; // UTC-6, no DST
+  const utcHour = crHour + CR_OFFSET; // convert CR time to UTC
+  const now = new Date();
+
   for (let d = 0; d <= 7; d++) {
     const c = new Date(now);
-    c.setDate(now.getDate() + d);
-    c.setHours(hour, minute, 0, 0);
-    const day = c.getDay();
-    if (day >= 1 && day <= 5 && c > now) {
+    // Set the correct UTC date + time (add extra day if utcHour >= 24)
+    c.setUTCDate(now.getUTCDate() + d + Math.floor(utcHour / 24));
+    c.setUTCHours(utcHour % 24, crMinute, 0, 0);
+
+    // Determine weekday in CR timezone
+    const crMs = c.getTime() - CR_OFFSET * 60 * 60 * 1000;
+    const crDay = new Date(crMs).getUTCDay(); // 0=Sun, 6=Sat
+
+    if (crDay >= 1 && crDay <= 5 && c > now) {
       return c.toLocaleString("es-CR", { timeZone: CR_TZ, dateStyle: "short", timeStyle: "short" });
     }
   }

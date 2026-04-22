@@ -15,11 +15,18 @@ function weekStart(): Date {
   return d;
 }
 
-// GET /api/metrics/overview
-metricsRouter.get("/overview", async (_req, res) => {
+// GET /api/metrics/overview?date=YYYY-MM-DD
+metricsRouter.get("/overview", async (req, res) => {
   try {
-    const today = todayStart();
-    const week = weekStart();
+    const dateParam = typeof req.query.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
+      ? req.query.date
+      : null;
+
+    const today = dateParam ? new Date(dateParam + "T00:00:00") : todayStart();
+    const todayEnd = new Date(today);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+    const week = new Date(today);
+    week.setDate(today.getDate() - 7);
 
     const [
       emailsSentToday,
@@ -32,12 +39,12 @@ metricsRouter.get("/overview", async (_req, res) => {
       recentResponses,
       recentScrape,
     ] = await Promise.all([
-      prisma.emailSent.count({ where: { sentAt: { gte: today } } }),
+      prisma.emailSent.count({ where: { sentAt: { gte: today, lt: todayEnd } } }),
       prisma.warmupState.findFirst(),
-      prisma.emailEvent.count({ where: { eventType: "BOUNCED", occurredAt: { gte: today } } }),
+      prisma.emailEvent.count({ where: { eventType: "BOUNCED", occurredAt: { gte: today, lt: todayEnd } } }),
       prisma.response.count({ where: { receivedAt: { gte: week } } }),
       prisma.scrapeLog.aggregate({
-        where: { startedAt: { gte: today } },
+        where: { startedAt: { gte: today, lt: todayEnd } },
         _sum: { prospectsFound: true, prospectsNew: true },
       }),
       prisma.$queryRaw<{ jobType: string; status: string; startedAt: Date; result: string | null; durationMs: number | null }[]>`
@@ -45,7 +52,7 @@ metricsRouter.get("/overview", async (_req, res) => {
         FROM job_runs ORDER BY "job_type", "started_at" DESC
       `,
       prisma.emailSent.findMany({
-        where: { sentAt: { gte: today } },
+        where: { sentAt: { gte: today, lt: todayEnd } },
         orderBy: { sentAt: "desc" },
         take: 3,
         include: { prospect: { select: { email: true, companyName: true } } },
@@ -55,7 +62,7 @@ metricsRouter.get("/overview", async (_req, res) => {
         take: 3,
         include: { prospect: { select: { email: true, companyName: true } } },
       }),
-      prisma.scrapeLog.findFirst({ where: { startedAt: { gte: today } }, orderBy: { startedAt: "desc" } }),
+      prisma.scrapeLog.findFirst({ where: { startedAt: { gte: today, lt: todayEnd } }, orderBy: { startedAt: "desc" } }),
     ]);
 
     const leadsToday = scrapeLogsToday._sum.prospectsFound ?? 0;
@@ -100,11 +107,12 @@ metricsRouter.get("/overview", async (_req, res) => {
   }
 });
 
-// GET /api/metrics/daily — last 7 days: emails + leads + responses
-metricsRouter.get("/daily", async (_req, res) => {
+// GET /api/metrics/daily?days=N — last N days: emails + leads + responses
+metricsRouter.get("/daily", async (req, res) => {
   try {
+    const daysParam = typeof req.query.days === "string" ? Math.min(parseInt(req.query.days), 30) : 7;
     const days: { date: string; emails: number; leads: number; responses: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
+    for (let i = daysParam - 1; i >= 0; i--) {
       const start = new Date();
       start.setDate(start.getDate() - i);
       start.setHours(0, 0, 0, 0);

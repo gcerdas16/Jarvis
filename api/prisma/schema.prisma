@@ -76,6 +76,12 @@ enum ProspectStatus {
   RESPONDED     // prospect replied
   UNSUBSCRIBED  // prospect asked to stop
   BOUNCED       // email bounced
+  REUNION_AGENDADA
+  REUNION_REALIZADA
+  PROPUESTA_ENVIADA
+  CLIENTE
+  NO_INTERESADO
+  REVISITAR
 }
 
 // ============================================

@@ -5,9 +5,7 @@ import ScrapersPage from "./pages/ScrapersPage";
 import EmailsPage from "./pages/EmailsPage";
 import JobsPage from "./pages/JobsPage";
 import ProspectsPage from "./pages/ProspectsPage";
-import UnsubscribesPage from "./pages/UnsubscribesPage";
 import QueuePage from "./pages/QueuePage";
-import NewProspectsPage from "./pages/NewProspectsPage";
 import WeekPage from "./pages/WeekPage";
 
 export default function App() {
@@ -19,10 +17,8 @@ export default function App() {
         <Route path="/emails" element={<EmailsPage />} />
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/prospects" element={<ProspectsPage />} />
-        <Route path="/unsubscribes" element={<UnsubscribesPage />} />
         <Route path="/queue" element={<QueuePage />} />
         <Route path="/semana" element={<WeekPage />} />
-        <Route path="/new-prospects" element={<NewProspectsPage />} />
       </Routes>
     </Layout>
   );

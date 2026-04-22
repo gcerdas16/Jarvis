@@ -62,16 +62,44 @@ export interface FilterOptions {
   countries: { value: string; count: number }[];
   techStacks: { value: string; count: number }[];
   tiers: { value: string; count: number }[];
+  industries: { value: string; count: number }[];
+  companyTypes: { value: string; count: number }[];
 }
 
-export interface QueueItem { id: string; email: string; companyName: string | null; industry: string | null; source: string; }
-export interface QueueFollowUp { id: string; email: string; companyName: string | null; industry: string | null; status: string; nextEmailType: string; updatedAt: string; hasTemplate: boolean; }
+export interface StatusHistoryItem {
+  id: string;
+  prospectId: string;
+  fromStatus: string | null;
+  toStatus: string;
+  changedBy: string;
+  note: string | null;
+  createdAt: string;
+}
+
+export const MANUAL_STATUSES = [
+  "REUNION_AGENDADA", "REUNION_REALIZADA", "PROPUESTA_ENVIADA",
+  "CLIENTE", "NO_INTERESADO", "REVISITAR",
+] as const;
+
+export type ManualStatus = typeof MANUAL_STATUSES[number];
+
+export const MANUAL_STATUS_LABELS: Record<ManualStatus, string> = {
+  REUNION_AGENDADA:  "Reunión agendada",
+  REUNION_REALIZADA: "Reunión realizada",
+  PROPUESTA_ENVIADA: "Propuesta enviada",
+  CLIENTE:           "Cliente",
+  NO_INTERESADO:     "No interesado",
+  REVISITAR:         "Revisitar",
+};
+
+export interface QueueItem { id: string; email: string; companyName: string | null; industry: string | null; source: string; leadTier: string | null; maturityScore: number | null; website: string | null; }
+export interface QueueFollowUp { id: string; email: string; companyName: string | null; industry: string | null; status: string; nextEmailType: string; updatedAt: string; hasTemplate: boolean; leadTier: string | null; }
 export interface QueueCampaign { id: string; name: string; subjectLine: string; bodyTemplate: string; followUp1: string | null; followUp2: string | null; followUp3: string | null; }
-export interface QueueData { dailyLimit: number; campaign: QueueCampaign | null; initial: QueueItem[]; followUps: QueueFollowUp[]; allFollowUpsDue: number; hasBatchConfirmed: boolean; totalTomorrow: number; }
+export interface QueueData { dailyLimit: number; emailsPaused: boolean; campaign: QueueCampaign | null; initial: QueueItem[]; followUps: QueueFollowUp[]; allFollowUpsDue: number; hasBatchConfirmed: boolean; totalTomorrow: number; }
 
 export interface WeekDayInitial {
   id: string; email: string; companyName: string | null; website: string | null;
-  industry: string | null; leadTier: string | null;
+  industry: string | null; leadTier: string | null; maturityScore: number | null;
 }
 export interface WeekDayFollowUp {
   id: string; email: string; companyName: string | null; industry: string | null;
@@ -127,4 +155,15 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prospectIds, date }),
     }).then((r) => r.json()),
+  toggleEmailsPause: () =>
+    fetch(`${BASE}/settings/emails-pause`, { method: "PATCH" }).then((r) => r.json()),
+  prospectStatusHistory: (id: string) => get<StatusHistoryItem[]>(`/prospects/${id}/history`),
+  updateProspectStatus: (id: string, status: string, note?: string) =>
+    fetch(`${BASE}/prospects/${id}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, note }),
+    }).then((r) => r.json()),
+  overviewByDate: (date: string) => get<OverviewData>(`/metrics/overview?date=${date}`),
+  dailyByDays: (days: number) => get<DailyData>(`/metrics/daily?days=${days}`),
 };

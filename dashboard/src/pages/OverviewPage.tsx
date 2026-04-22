@@ -26,15 +26,19 @@ export default function OverviewPage() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [daily, setDaily] = useState<{ date: string; emails: number; leads: number; responses: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<string>("");
 
   async function load() {
-    const [ov, dl] = await Promise.all([api.overview(), api.daily()]);
+    const [ov, dl] = await Promise.all([
+      selectedDate ? api.overviewByDate(selectedDate) : api.overview(),
+      api.daily(),
+    ]);
     setData(ov);
     setDaily(dl.days);
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [selectedDate]);
   const countdown = useAutoRefresh(load);
 
   if (loading) return <div className="p-6 text-slate-500 text-sm">Cargando...</div>;
@@ -42,6 +46,9 @@ export default function OverviewPage() {
 
   const { kpis, activity, jobs } = data;
   const today = new Date().toLocaleDateString("es-CR", { weekday: "long", day: "numeric", month: "short", year: "numeric" });
+  const dateLabel = selectedDate
+    ? new Date(selectedDate + "T12:00:00").toLocaleDateString("es-CR", { day: "numeric", month: "short" })
+    : "hoy";
 
   return (
     <div className="p-6 space-y-4">
@@ -58,12 +65,46 @@ export default function OverviewPage() {
         </div>
       </div>
 
+      {/* Date picker row */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex gap-1">
+          {["", "7d", "30d"].map((preset) => (
+            <button key={preset}
+              onClick={() => {
+                if (preset === "") setSelectedDate("");
+                else {
+                  const d = new Date();
+                  d.setDate(d.getDate() - (preset === "7d" ? 7 : 30));
+                  setSelectedDate(d.toISOString().slice(0, 10));
+                }
+              }}
+              className={`text-xs px-2.5 py-1 rounded-lg font-semibold border transition-all ${
+                (preset === "" && !selectedDate) || (preset !== "" && selectedDate)
+                  ? "bg-blue-500 text-white border-blue-500"
+                  : "border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+              }`}>
+              {preset === "" ? "Hoy" : preset === "7d" ? "7 días" : "30 días"}
+            </button>
+          ))}
+        </div>
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="text-xs px-2.5 py-1 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 outline-none"
+        />
+        {selectedDate && (
+          <button onClick={() => setSelectedDate("")}
+            className="text-xs text-slate-400 hover:text-slate-600 px-2">Hoy</button>
+        )}
+      </div>
+
       {/* KPIs */}
       <div className="grid grid-cols-4 gap-3">
-        <KpiCard label="Emails hoy" value={`${kpis.emailsSentToday}/${kpis.dailyLimit}`} progress={(kpis.emailsSentToday / kpis.dailyLimit) * 100} sub={`${((kpis.emailsSentToday / kpis.dailyLimit) * 100).toFixed(0)}% del límite`} subColor="up" />
-        <KpiCard label="Leads hoy" value={kpis.leadsToday} sub={`${kpis.leadsNew} nuevos · ${kpis.leadsDuplicates} duplicados`} progressColor="bg-purple-500" progress={60} />
+        <KpiCard label={`Emails ${dateLabel}`} value={`${kpis.emailsSentToday}/${kpis.dailyLimit}`} progress={(kpis.emailsSentToday / kpis.dailyLimit) * 100} sub={`${((kpis.emailsSentToday / kpis.dailyLimit) * 100).toFixed(0)}% del límite`} subColor="up" />
+        <KpiCard label={`Leads ${dateLabel}`} value={kpis.leadsToday} sub={`${kpis.leadsNew} nuevos · ${kpis.leadsDuplicates} duplicados`} progressColor="bg-purple-500" progress={60} />
         <KpiCard label="Respuestas" value={kpis.responsesThisWeek} sub="Esta semana" subColor="up" progressColor="bg-emerald-500" progress={30} />
-        <KpiCard label="Bounces hoy" value={kpis.bouncesToday} sub={`${kpis.bounceRate}% de enviados`} subColor={Number(kpis.bounceRate) > 5 ? "down" : "neutral"} progressColor="bg-red-500" progress={Number(kpis.bounceRate)} />
+        <KpiCard label={`Bounces ${dateLabel}`} value={kpis.bouncesToday} sub={`${kpis.bounceRate}% de enviados`} subColor={Number(kpis.bounceRate) > 5 ? "down" : "neutral"} progressColor="bg-red-500" progress={Number(kpis.bounceRate)} />
       </div>
 
       {/* Chart + Activity */}

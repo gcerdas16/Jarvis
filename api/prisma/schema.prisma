@@ -53,10 +53,11 @@ model Prospect {
   createdAt     DateTime        @default(now()) @map("created_at")
   updatedAt     DateTime        @updatedAt @map("updated_at")
 
-  emailsSent   EmailSent[]
-  responses    Response[]
-  dailyBatches DailyBatch[]
-  notes        ProspectNote[]
+  emailsSent     EmailSent[]
+  responses      Response[]
+  dailyBatches   DailyBatch[]
+  notes          ProspectNote[]
+  statusHistory  ProspectStatusHistory[]
 
   @@index([status])
   @@index([sourceId])
@@ -199,6 +200,23 @@ model ProspectNote {
 
   @@index([prospectId])
   @@map("prospect_notes")
+}
+
+// ============================================
+// PROSPECT STATUS HISTORY — audit trail
+// ============================================
+model ProspectStatusHistory {
+  id          String          @id @default(cuid())
+  prospectId  String          @map("prospect_id")
+  prospect    Prospect        @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  fromStatus  ProspectStatus? @map("from_status")
+  toStatus    ProspectStatus  @map("to_status")
+  changedBy   String          @default("system") @map("changed_by")
+  note        String?
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  @@index([prospectId])
+  @@map("prospect_status_history")
 }
 
 // ============================================

@@ -12,9 +12,18 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function isEmailsPaused(): Promise<boolean> {
+  const warmup = await prisma.warmupState.findFirst();
+  return warmup?.emailsPaused ?? false;
+}
+
 export async function processEmailQueue(): Promise<{ emailsSent: number; bounces: number }> {
   if (isProcessingQueue) {
     console.log("[EmailEngine] Queue already processing, skipping");
+    return { emailsSent: 0, bounces: 0 };
+  }
+  if (await isEmailsPaused()) {
+    console.log("[EmailEngine] Emails paused, skipping queue");
     return { emailsSent: 0, bounces: 0 };
   }
   isProcessingQueue = true;
@@ -33,7 +42,6 @@ export async function processEmailQueue(): Promise<{ emailsSent: number; bounces
   let emailsSent = 0;
 
   try {
-    // Check for confirmed manual batch for today
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(todayStart);
@@ -73,30 +81,34 @@ export async function processEmailQueue(): Promise<{ emailsSent: number; bounces
         description: prospect.description,
       });
 
-      const messageId = await sendEmail({
-        to: prospect.email,
-        subject,
-        body,
-      });
+      const messageId = await sendEmail({ to: prospect.email, subject, body });
 
       if (messageId) {
-        await prisma.emailSent.create({
-          data: {
-            prospectId: prospect.id,
-            campaignId: activeCampaign.id,
-            emailType: "INITIAL",
-            subject,
-            body,
-            sesMessageId: messageId,
-          },
-        });
+        await prisma.$transaction([
+          prisma.emailSent.create({
+            data: {
+              prospectId: prospect.id,
+              campaignId: activeCampaign.id,
+              emailType: "INITIAL",
+              subject,
+              body,
+              sesMessageId: messageId,
+            },
+          }),
+          prisma.prospect.update({
+            where: { id: prospect.id },
+            data: { status: "CONTACTED" },
+          }),
+          prisma.prospectStatusHistory.create({
+            data: {
+              prospectId: prospect.id,
+              fromStatus: "NEW",
+              toStatus: "CONTACTED",
+              changedBy: "system",
+            },
+          }),
+        ]);
         emailsSent++;
-
-        await prisma.prospect.update({
-          where: { id: prospect.id },
-          data: { status: "CONTACTED" },
-        });
-
         await incrementSentCount();
       }
 
@@ -116,6 +128,10 @@ export async function processFollowUps(): Promise<{ emailsSent: number }> {
     console.log("[EmailEngine] Follow-ups already processing, skipping");
     return { emailsSent: 0 };
   }
+  if (await isEmailsPaused()) {
+    console.log("[EmailEngine] Emails paused, skipping follow-ups");
+    return { emailsSent: 0 };
+  }
   isProcessingFollowUps = true;
   console.log("[EmailEngine] Processing follow-ups...");
 
@@ -133,9 +149,10 @@ export async function processFollowUps(): Promise<{ emailsSent: number }> {
   try {
     const subject = `Re: ${activeCampaign.subjectLine.replace(/[\n\r]/g, "").trim()}`;
 
+    // Only CONTACTED, FOLLOW_UP_1, FOLLOW_UP_2 are eligible — manual statuses are excluded
     const followUpConfigs = [
-      { currentStatus: ProspectStatus.CONTACTED, nextStatus: ProspectStatus.FOLLOW_UP_1, template: activeCampaign.followUp1, emailType: "FOLLOW_UP_1" as const, daysAfter: 3 },
-      { currentStatus: ProspectStatus.FOLLOW_UP_1, nextStatus: ProspectStatus.FOLLOW_UP_2, template: activeCampaign.followUp2, emailType: "FOLLOW_UP_2" as const, daysAfter: 5 },
+      { currentStatus: ProspectStatus.CONTACTED, nextStatus: ProspectStatus.FOLLOW_UP_1, template: activeCampaign.followUp1, emailType: "FOLLOW_UP_1" as const, daysAfter: 9 },
+      { currentStatus: ProspectStatus.FOLLOW_UP_1, nextStatus: ProspectStatus.FOLLOW_UP_2, template: activeCampaign.followUp2, emailType: "FOLLOW_UP_2" as const, daysAfter: 15 },
       { currentStatus: ProspectStatus.FOLLOW_UP_2, nextStatus: ProspectStatus.FOLLOW_UP_3, template: activeCampaign.followUp3, emailType: "FOLLOW_UP_3" as const, daysAfter: 7 },
     ];
 
@@ -157,34 +174,35 @@ export async function processFollowUps(): Promise<{ emailsSent: number }> {
       for (const prospect of prospects) {
         if (!(await canSendEmail())) break;
 
-        const body = renderTemplate(config.template, {
-          industry: prospect.industry,
-        });
-
-        const messageId = await sendEmail({
-          to: prospect.email,
-          subject,
-          body,
-        });
+        const body = renderTemplate(config.template, { industry: prospect.industry });
+        const messageId = await sendEmail({ to: prospect.email, subject, body });
 
         if (messageId) {
-          await prisma.emailSent.create({
-            data: {
-              prospectId: prospect.id,
-              campaignId: activeCampaign.id,
-              emailType: config.emailType,
-              subject,
-              body,
-              sesMessageId: messageId,
-            },
-          });
+          await prisma.$transaction([
+            prisma.emailSent.create({
+              data: {
+                prospectId: prospect.id,
+                campaignId: activeCampaign.id,
+                emailType: config.emailType,
+                subject,
+                body,
+                sesMessageId: messageId,
+              },
+            }),
+            prisma.prospect.update({
+              where: { id: prospect.id },
+              data: { status: config.nextStatus },
+            }),
+            prisma.prospectStatusHistory.create({
+              data: {
+                prospectId: prospect.id,
+                fromStatus: config.currentStatus,
+                toStatus: config.nextStatus,
+                changedBy: "system",
+              },
+            }),
+          ]);
           emailsSent++;
-
-          await prisma.prospect.update({
-            where: { id: prospect.id },
-            data: { status: config.nextStatus },
-          });
-
           await incrementSentCount();
         }
 

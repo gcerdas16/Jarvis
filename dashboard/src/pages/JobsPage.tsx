@@ -15,6 +15,22 @@ const JOB_ICONS: Record<string, React.ReactNode> = {
 const HISTORY_TABS = ["all", "EMAIL_SEND", "FOLLOW_UPS", "SCRAPER"] as const;
 const TAB_LABELS: Record<string, string> = { all: "Todos", EMAIL_SEND: "Emails", FOLLOW_UPS: "Follow-ups", SCRAPER: "Scraper" };
 
+function computeSummary(runs: JobRun[]) {
+  let emailsSent = 0,
+    followUpsSent = 0,
+    prospectsFound = 0,
+    prospectsNew = 0;
+  for (const r of runs) {
+    if (r.jobType === "EMAIL_SEND" && r.result) emailsSent += (r.result.emailsSent as number) ?? 0;
+    if (r.jobType === "FOLLOW_UPS" && r.result) followUpsSent += (r.result.emailsSent as number) ?? 0;
+    if (r.jobType === "SCRAPER" && r.result) {
+      prospectsFound += (r.result.leadsFound as number) ?? 0;
+      prospectsNew += (r.result.newLeads as number) ?? 0;
+    }
+  }
+  return { emailsSent, followUpsSent, prospectsFound, prospectsNew };
+}
+
 export default function JobsPage() {
   const today = todayISO();
   const [from, setFrom] = useState(today);
@@ -74,6 +90,46 @@ export default function JobsPage() {
           );
         })}
       </div>
+
+      {from !== today || to !== today ? (() => {
+        const s = computeSummary(runs);
+        return (
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            {[
+              {
+                label: "Emails iniciales enviados",
+                value: s.emailsSent,
+                color: "text-blue-600",
+              },
+              {
+                label: "Follow-ups enviados",
+                value: s.followUpsSent,
+                color: "text-amber-600",
+              },
+              {
+                label: "Prospects encontrados",
+                value: s.prospectsFound,
+                color: "text-slate-700 dark:text-slate-200",
+              },
+              {
+                label: "Prospects nuevos (dedup)",
+                value: s.prospectsNew,
+                color: "text-emerald-600",
+              },
+            ].map(({ label, value, color }) => (
+              <div
+                key={label}
+                className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4"
+              >
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  {label}
+                </p>
+                <p className={`text-2xl font-extrabold ${color}`}>{value.toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        );
+      })() : null}
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
         <div className="flex justify-between items-center mb-3">

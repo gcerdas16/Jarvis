@@ -4,22 +4,13 @@ import { api, ProspectItem, FilterOptions } from "../lib/api";
 import { Badge } from "../components/ui/Badge";
 import { Drawer } from "../components/ui/Drawer";
 import { ProspectDrawerContent } from "../components/ui/ProspectDrawer";
+import { TierBadge } from "../components/ui/TierBadge";
 import { relativeTime, todayISO, displayCompany } from "../lib/utils";
 
 const STATUS_OPTIONS = ["", "NEW", "CONTACTED", "FOLLOW_UP_1", "FOLLOW_UP_2", "FOLLOW_UP_3", "RESPONDED", "BOUNCED", "UNSUBSCRIBED"];
 const LIMIT = 25;
 
 type SortCol = "email" | "companyName" | "industry" | "status" | "updatedAt" | "maturityScore";
-
-function TierBadge({ tier }: { tier: string | null | undefined }) {
-  if (!tier) return <span className="text-slate-300">—</span>;
-  const colors: Record<string, string> = {
-    N1: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    N2: "bg-amber-100 text-amber-700 border-amber-200",
-    N3: "bg-slate-100 text-slate-600 border-slate-200",
-  };
-  return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${colors[tier] ?? colors.N3}`}>{tier}</span>;
-}
 
 function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: "asc" | "desc" }) {
   if (col !== sortCol) return <CaretDown size={10} className="text-slate-300 ml-0.5 inline" />;

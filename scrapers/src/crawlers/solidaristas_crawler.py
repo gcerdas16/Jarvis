@@ -2,7 +2,6 @@ import asyncpg
 from src.crawlers.base_crawler import BaseCrawler
 from src.extractors.ai_extractor import extract_company_context
 from src.utils.email_extractor import extract_emails
-from src.utils.db import insert_prospect
 
 
 SOLIDARISTA_URLS = [

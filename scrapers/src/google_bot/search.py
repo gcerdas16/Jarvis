@@ -1,6 +1,5 @@
 """Google search using Crawl4AI to scrape Google results directly."""
 import re
-import time
 import asyncio
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
 from urllib.parse import quote_plus
@@ -61,7 +60,7 @@ async def search_google_async(
         async with AsyncWebCrawler(config=config) as crawler:
             result = await crawler.arun(url=url, config=run_config)
             if not result.success:
-                print(f"[GoogleBot] Failed to scrape Google")
+                print("[GoogleBot] Failed to scrape Google")
                 return []
 
             urls = _extract_urls_from_markdown(result.markdown or "")

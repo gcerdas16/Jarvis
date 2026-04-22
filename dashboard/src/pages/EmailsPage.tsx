@@ -45,6 +45,18 @@ export default function EmailsPage() {
 
   const selected = emails.find((e) => e.id === selectedId);
 
+  // Determine period label based on date range
+  const periodLabel = from === to ? "hoy" : `(${from} a ${to})`;
+
+  // Map tab keys to KPI counts for counter display
+  const tabCounts: Record<string, number | undefined> = {
+    all: kpis.sentToday,
+    initial: kpis.sentToday, // Initial emails are part of sentToday
+    followup: kpis.followUpsToday,
+    bounced: kpis.bouncesToday,
+    replied: kpis.responsesThisWeek,
+  };
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex justify-between items-start">
@@ -59,9 +71,9 @@ export default function EmailsPage() {
       </div>
 
       <div className="grid grid-cols-4 gap-3">
-        <KpiCard label="Enviados hoy" value={`${kpis.sentToday}/${kpis.dailyLimit}`} progress={(kpis.sentToday / kpis.dailyLimit) * 100} sub={`${((kpis.sentToday / kpis.dailyLimit) * 100).toFixed(0)}% del límite`} subColor="up" />
-        <KpiCard label="Follow-ups hoy" value={kpis.followUpsToday} progressColor="bg-purple-500" />
-        <KpiCard label="Bounces hoy" value={kpis.bouncesToday} sub={kpis.sentToday > 0 ? `${((kpis.bouncesToday / kpis.sentToday) * 100).toFixed(1)}% bounce rate` : "0%"} subColor="down" progressColor="bg-red-500" progress={kpis.sentToday > 0 ? (kpis.bouncesToday / kpis.sentToday) * 100 : 0} />
+        <KpiCard label={`Enviados ${periodLabel}`} value={`${kpis.sentToday}/${kpis.dailyLimit}`} progress={(kpis.sentToday / kpis.dailyLimit) * 100} sub={`${((kpis.sentToday / kpis.dailyLimit) * 100).toFixed(0)}% del límite`} subColor="up" />
+        <KpiCard label={`Follow-ups ${periodLabel}`} value={kpis.followUpsToday} progressColor="bg-purple-500" />
+        <KpiCard label={`Bounces ${periodLabel}`} value={kpis.bouncesToday} sub={kpis.sentToday > 0 ? `${((kpis.bouncesToday / kpis.sentToday) * 100).toFixed(1)}% bounce rate` : "0%"} subColor="down" progressColor="bg-red-500" progress={kpis.sentToday > 0 ? (kpis.bouncesToday / kpis.sentToday) * 100 : 0} />
         <KpiCard label="Respuestas" value={kpis.responsesThisWeek} sub="Esta semana" subColor="up" progressColor="bg-emerald-500" />
       </div>
 
@@ -71,7 +83,7 @@ export default function EmailsPage() {
             {TABS.map((t) => (
               <button key={t} onClick={() => setTab(t)}
                 className={`px-3 py-1 rounded-md text-xs font-semibold border transition-colors ${tab === t ? "bg-blue-50 border-blue-200 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}>
-                {TAB_LABELS[t]}
+                {TAB_LABELS[t]}{tabCounts[t] != null ? ` (${tabCounts[t]})` : ""}
               </button>
             ))}
           </div>

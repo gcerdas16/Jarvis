@@ -44,8 +44,6 @@ export default function ScrapersPage() {
           <p className="text-xs text-slate-500 mt-0.5">Corre automáticamente L-V 7:42am</p>
         </div>
         <div className="flex items-center gap-3">
-          <input type="date" value={selectedDate} max={todayISO()} onChange={(e) => setSelectedDate(e.target.value)}
-            className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 outline-none" />
           {isToday && <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />Activo</span>}
         </div>
       </div>
@@ -59,14 +57,28 @@ export default function ScrapersPage() {
 
       <div className="grid grid-cols-5 gap-3">
         <div className="col-span-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-          <p className="text-sm font-bold text-slate-900 dark:text-white mb-3">Historial de Runs — Hoy</p>
+          <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+            <span>Historial de Runs</span>
+            <input type="date" value={selectedDate} max={todayISO()} onChange={(e) => setSelectedDate(e.target.value)}
+              className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 outline-none ml-auto" />
+          </h2>
           <table className="w-full text-xs">
             <thead>
               <tr className="text-slate-400 border-b border-slate-100 dark:border-slate-700">
                 <th className="text-left py-1.5 px-2 font-semibold uppercase tracking-wide">Keyword</th>
                 <th className="text-left py-1.5 px-2 font-semibold uppercase tracking-wide">Tipo</th>
-                <th className="text-center py-1.5 px-2 font-semibold uppercase tracking-wide">Encontrados</th>
-                <th className="text-center py-1.5 px-2 font-semibold uppercase tracking-wide">Nuevos</th>
+                <th className="text-center py-1.5 px-2 font-semibold uppercase tracking-wide relative group cursor-help">
+                  Encontrados
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 bg-slate-800 text-white text-[10px] rounded-lg px-2.5 py-2 shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none z-10 text-center whitespace-normal">
+                    URLs/negocios encontrados en la búsqueda antes de deduplicar
+                  </div>
+                </th>
+                <th className="text-center py-1.5 px-2 font-semibold uppercase tracking-wide relative group cursor-help">
+                  Nuevos
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 bg-slate-800 text-white text-[10px] rounded-lg px-2.5 py-2 shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none z-10 text-center whitespace-normal">
+                    Insertados en BD después de deduplicación (email no existía)
+                  </div>
+                </th>
                 <th className="text-center py-1.5 px-2 font-semibold uppercase tracking-wide">Estado</th>
                 <th className="text-right py-1.5 px-2 font-semibold uppercase tracking-wide">Hora</th>
               </tr>
@@ -125,22 +137,33 @@ export default function ScrapersPage() {
         </div>
       </div>
       {/* Keyword bank */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
-          <p className="text-sm font-bold text-slate-900 dark:text-white">Banco de Keywords ({keywords.length})</p>
-          <input value={kwFilter} onChange={(e) => setKwFilter(e.target.value)} placeholder="Filtrar..."
-            className="text-xs px-2.5 py-1 border border-slate-200 dark:border-slate-600 rounded-lg bg-transparent text-slate-700 dark:text-slate-300 outline-none w-40" />
-        </div>
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-slate-400 border-b border-slate-100 dark:border-slate-700">
-              <th className="py-2 px-3 text-left font-semibold uppercase tracking-wide">Keyword</th>
-              <th className="py-2 px-3 text-left font-semibold uppercase tracking-wide">Industria</th>
-              <th className="py-2 px-3 text-center font-semibold uppercase tracking-wide">Progreso</th>
-              <th className="py-2 px-3 text-right font-semibold uppercase tracking-wide">Último run</th>
-              <th className="py-2 px-3 text-center font-semibold uppercase tracking-wide">Estado</th>
-            </tr>
-          </thead>
+      <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-6">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
+            <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200">Banco de Keywords ({keywords.length})</h2>
+            <input value={kwFilter} onChange={(e) => setKwFilter(e.target.value)} placeholder="Filtrar..."
+              className="text-xs px-2.5 py-1 border border-slate-200 dark:border-slate-600 rounded-lg bg-transparent text-slate-700 dark:text-slate-300 outline-none w-40" />
+          </div>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                <th className="py-2 px-3 text-left font-semibold uppercase tracking-wide">Keyword</th>
+                <th className="py-2 px-3 text-left font-semibold uppercase tracking-wide">Industria</th>
+                <th className="py-2 px-3 text-center font-semibold uppercase tracking-wide relative group cursor-help">
+                  Progreso
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-52 bg-slate-800 text-white text-[10px] rounded-lg px-2.5 py-2 shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none z-10 text-center whitespace-normal">
+                    Páginas buscadas / total. Ej: 4/5 = 4 páginas de resultados procesadas de 5 posibles.
+                  </div>
+                </th>
+                <th className="py-2 px-3 text-right font-semibold uppercase tracking-wide">Último run</th>
+                <th className="py-2 px-3 text-center font-semibold uppercase tracking-wide relative group cursor-help">
+                  Estado
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-44 bg-slate-800 text-white text-[10px] rounded-lg px-2.5 py-2 shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none z-10 text-center whitespace-normal">
+                    Activo: el scraper lo usa. Inactivo: pausado manualmente en BD.
+                  </div>
+                </th>
+              </tr>
+            </thead>
           <tbody>
             {keywords.filter((k) => !kwFilter || k.keyword.toLowerCase().includes(kwFilter.toLowerCase()) || k.industry.toLowerCase().includes(kwFilter.toLowerCase())).map((k) => (
               <tr key={k.id} className="border-b border-slate-50 dark:border-slate-700/30 hover:bg-slate-50 dark:hover:bg-slate-700/20">
@@ -170,6 +193,7 @@ export default function ScrapersPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

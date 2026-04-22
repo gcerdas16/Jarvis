@@ -10,10 +10,13 @@ const listQuerySchema = z.object({
   status: z.string().optional(),
   source: z.string().optional(),
   companyType: z.string().optional(),
+  industry: z.string().optional(),
   tier: z.enum(["N1", "N2", "N3"]).optional(),
   country: z.string().optional(),
   techStack: z.string().optional(),
   search: z.string().optional(),
+  createdFrom: z.string().optional(),
+  createdTo: z.string().optional(),
   sortBy: z.enum(["email", "companyName", "industry", "status", "updatedAt", "maturityScore"]).default("updatedAt"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
 });
@@ -27,6 +30,7 @@ prospectsRouter.get("/", async (req, res) => {
       ...(query.status && { status: query.status as any }),
       ...(query.source && { sourceId: query.source }),
       ...(query.companyType && { companyType: query.companyType }),
+      ...(query.industry && { industry: query.industry }),
       ...(query.tier && { leadTier: query.tier }),
       ...(query.country && { country: query.country }),
       ...(query.techStack && { techStack: query.techStack }),
@@ -35,6 +39,12 @@ prospectsRouter.get("/", async (req, res) => {
           { email: { contains: query.search, mode: "insensitive" as const } },
           { companyName: { contains: query.search, mode: "insensitive" as const } },
         ],
+      }),
+      ...((query.createdFrom || query.createdTo) && {
+        createdAt: {
+          ...(query.createdFrom && { gte: new Date(query.createdFrom) }),
+          ...(query.createdTo && { lte: new Date(query.createdTo + "T23:59:59") }),
+        },
       }),
     };
 
@@ -74,7 +84,7 @@ prospectsRouter.get("/", async (req, res) => {
 // Meta data needed to populate filter dropdowns on the prospects page
 prospectsRouter.get("/filter-options", async (_req, res) => {
   try {
-    const [sources, countries, techStacks, tiers] = await Promise.all([
+    const [sources, countries, techStacks, tiers, industries, companyTypes] = await Promise.all([
       prisma.source.findMany({
         where: { isActive: true },
         select: { id: true, name: true, type: true },
@@ -96,15 +106,30 @@ prospectsRouter.get("/filter-options", async (_req, res) => {
         where: { leadTier: { not: null } },
         _count: { id: true },
       }),
+      prisma.prospect.groupBy({
+        by: ["industry"],
+        where: { industry: { not: null } },
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+        take: 50,
+      }),
+      prisma.prospect.groupBy({
+        by: ["companyType"],
+        where: { companyType: { not: null } },
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+      }),
     ]);
 
     res.json({
       success: true,
       data: {
         sources: sources.map((s) => ({ id: s.id, name: s.name, type: s.type })),
-        countries: countries.map((c) => ({ value: c.country, count: c._count.id })),
+        countries: countries.map((c) => ({ value: c.country ?? "", count: c._count.id })),
         techStacks: techStacks.map((t) => ({ value: t.techStack, count: t._count.id })),
         tiers: tiers.map((t) => ({ value: t.leadTier, count: t._count.id })),
+        industries: industries.map((i) => ({ value: i.industry!, count: i._count.id })),
+        companyTypes: companyTypes.map((c) => ({ value: c.companyType!, count: c._count.id })),
       },
     });
   } catch (e) {
@@ -158,6 +183,61 @@ prospectsRouter.get("/new/stats", async (_req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ success: false, error: "Failed to fetch new prospect stats" });
+  }
+});
+
+const MANUAL_STATUSES = [
+  "REUNION_AGENDADA", "REUNION_REALIZADA", "PROPUESTA_ENVIADA",
+  "CLIENTE", "NO_INTERESADO", "REVISITAR",
+] as const;
+
+const statusChangeSchema = z.object({
+  status: z.enum(MANUAL_STATUSES),
+  note: z.string().max(2000).optional(),
+});
+
+prospectsRouter.patch("/:id/status", async (req, res) => {
+  try {
+    const { status, note } = statusChangeSchema.parse(req.body);
+    const prospect = await prisma.prospect.findUnique({ where: { id: req.params.id } });
+    if (!prospect) {
+      res.status(404).json({ success: false, error: "Prospect not found" });
+      return;
+    }
+    const [updated] = await prisma.$transaction([
+      prisma.prospect.update({
+        where: { id: req.params.id },
+        data: { status: status as any },
+      }),
+      prisma.prospectStatusHistory.create({
+        data: {
+          prospectId: req.params.id,
+          fromStatus: prospect.status,
+          toStatus: status as any,
+          changedBy: "gustavo",
+          note: note ?? null,
+        },
+      }),
+    ]);
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error instanceof z.ZodError ? error.errors[0].message : "Failed to update status",
+    });
+  }
+});
+
+prospectsRouter.get("/:id/history", async (req, res) => {
+  try {
+    const history = await prisma.prospectStatusHistory.findMany({
+      where: { prospectId: req.params.id },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json({ success: true, data: history });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, error: "Failed to fetch history" });
   }
 });
 

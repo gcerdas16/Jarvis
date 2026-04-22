@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PaperPlaneTilt, ChatText } from "@phosphor-icons/react";
-import { api, ProspectItem, ProspectNote } from "../../lib/api";
+import { api, ProspectItem, ProspectNote, StatusHistoryItem } from "../../lib/api";
 import { Badge } from "./Badge";
 import { formatDate } from "../../lib/utils";
+
+const MANUAL_STATUS_SET = new Set(["REUNION_AGENDADA", "REUNION_REALIZADA", "PROPUESTA_ENVIADA", "CLIENTE", "NO_INTERESADO", "REVISITAR"]);
 
 export const NOTE_TYPES = [
   { value: "GENERAL", label: "Nota", color: "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300" },
@@ -20,10 +22,22 @@ export function noteColors(type: string) {
   return NOTE_TYPES.find((n) => n.value === type)?.color ?? "bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300";
 }
 
-export function ProspectDrawerContent({ drawerData, onNoteAdded }: { drawerData: ProspectItem; onNoteAdded: () => void }) {
+export function ProspectDrawerContent({ drawerData, onNoteAdded, onStatusChanged }: {
+  drawerData: ProspectItem;
+  onNoteAdded: () => void;
+  onStatusChanged?: (newStatus: string) => void;
+}) {
   const [noteType, setNoteType] = useState<NoteType>("GENERAL");
   const [noteText, setNoteText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
+
+  useEffect(() => {
+    api.prospectStatusHistory(drawerData.id).then(setStatusHistory).catch(() => {});
+  }, [drawerData.id]);
+
+  // Suppress unused warning — onStatusChanged is part of the public API for parents that want callbacks.
+  void onStatusChanged;
 
   async function submitNote() {
     if (!noteText.trim()) return;
@@ -37,12 +51,14 @@ export function ProspectDrawerContent({ drawerData, onNoteAdded }: { drawerData:
   type TLItem =
     | { kind: "email"; id: string; emailType: string; subject: string; sentAt: string; events: { eventType: string; occurredAt: string }[]; date: string }
     | { kind: "response"; id: string; receivedAt: string; bodyPreview: string | null; date: string }
-    | { kind: "note"; id: string; noteType: string; content: string; createdAt: string; date: string };
+    | { kind: "note"; id: string; noteType: string; content: string; createdAt: string; date: string }
+    | { kind: "status"; id: string; toStatus: string; fromStatus: string | null; changedBy: string; note: string | null; createdAt: string; date: string };
 
   const timeline: TLItem[] = [
     ...(drawerData.emailsSent?.map((e) => ({ kind: "email" as const, ...e, date: e.sentAt })) ?? []),
     ...(drawerData.responses?.map((r) => ({ kind: "response" as const, ...r, date: r.receivedAt })) ?? []),
     ...((drawerData.notes as ProspectNote[] | undefined)?.map((n) => ({ kind: "note" as const, ...n, date: n.createdAt })) ?? []),
+    ...statusHistory.map((h) => ({ kind: "status" as const, ...h, date: h.createdAt })),
   ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   return (
@@ -66,6 +82,12 @@ export function ProspectDrawerContent({ drawerData, onNoteAdded }: { drawerData:
           </div>
         )}
       </div>
+
+      {MANUAL_STATUS_SET.has(drawerData.status) && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 text-[11px] font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-2">
+          <span>⛔</span> Follow-ups detenidos — status manual activo
+        </div>
+      )}
 
       {/* Timeline */}
       <div>
@@ -96,6 +118,28 @@ export function ProspectDrawerContent({ drawerData, onNoteAdded }: { drawerData:
                   <span className="text-[10px] text-slate-400">{formatDate(item.receivedAt)}</span>
                 </div>
                 {item.bodyPreview && <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">{item.bodyPreview}</p>}
+              </div>
+            );
+            if (item.kind === "status") return (
+              <div key={item.id} className={`rounded-lg p-2.5 border-l-2 ${
+                item.changedBy === "system"
+                  ? "bg-slate-50 dark:bg-slate-700/30 border-slate-300 dark:border-slate-600"
+                  : "bg-blue-50 dark:bg-blue-900/20 border-blue-400"
+              }`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    {item.toStatus.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase())}
+                    <span className={`text-[9px] px-1.5 py-px rounded font-bold ${
+                      item.changedBy === "system"
+                        ? "bg-slate-200 dark:bg-slate-600 text-slate-500"
+                        : "bg-blue-200 dark:bg-blue-700 text-blue-700 dark:text-blue-200"
+                    }`}>
+                      {item.changedBy === "system" ? "Auto" : "Manual"}
+                    </span>
+                  </p>
+                  <span className="text-[10px] text-slate-400">{formatDate(item.createdAt)}</span>
+                </div>
+                {item.note && <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 italic">{item.note}</p>}
               </div>
             );
             return (

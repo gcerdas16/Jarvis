@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
 import { MagnifyingGlass, CaretRight, CaretUp, CaretDown, ArrowLeft, ArrowRight, X } from "@phosphor-icons/react";
 import { api, ProspectItem, FilterOptions } from "../lib/api";
-import { Badge } from "../components/ui/Badge";
 import { Drawer } from "../components/ui/Drawer";
 import { ProspectDrawerContent } from "../components/ui/ProspectDrawer";
+import { StatusDropdown } from "../components/ui/StatusDropdown";
 import { TierBadge } from "../components/ui/TierBadge";
 import { relativeTime, todayISO, displayCompany } from "../lib/utils";
 
-const STATUS_OPTIONS = ["", "NEW", "CONTACTED", "FOLLOW_UP_1", "FOLLOW_UP_2", "FOLLOW_UP_3", "RESPONDED", "BOUNCED", "UNSUBSCRIBED"];
+const STATUS_OPTIONS = [
+  "", "NEW", "CONTACTED", "FOLLOW_UP_1", "FOLLOW_UP_2", "FOLLOW_UP_3",
+  "RESPONDED", "BOUNCED", "UNSUBSCRIBED",
+  "REUNION_AGENDADA", "REUNION_REALIZADA", "PROPUESTA_ENVIADA",
+  "CLIENTE", "NO_INTERESADO", "REVISITAR",
+];
 const LIMIT = 25;
 
 type SortCol = "email" | "companyName" | "industry" | "status" | "updatedAt" | "maturityScore";
@@ -30,6 +35,10 @@ export default function ProspectsPage() {
   const [sourceFilter, setSourceFilter] = useState("");
   const [countryFilter, setCountryFilter] = useState("");
   const [techStackFilter, setTechStackFilter] = useState("");
+  const [industryFilter, setIndustryFilter] = useState("");
+  const [companyTypeFilter, setCompanyTypeFilter] = useState("");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [sortCol, setSortCol] = useState<SortCol>("updatedAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -39,7 +48,7 @@ export default function ProspectsPage() {
   const [loading, setLoading] = useState(true);
 
   const totalPages = Math.ceil(total / LIMIT);
-  const activeFilterCount = [statusFilter, tierFilter, sourceFilter, countryFilter, techStackFilter].filter(Boolean).length;
+  const activeFilterCount = [statusFilter, tierFilter, sourceFilter, countryFilter, techStackFilter, industryFilter, companyTypeFilter, createdFrom, createdTo].filter(Boolean).length;
 
   async function load() {
     setLoading(true);
@@ -55,6 +64,10 @@ export default function ProspectsPage() {
     if (sourceFilter) params.set("source", sourceFilter);
     if (countryFilter) params.set("country", countryFilter);
     if (techStackFilter) params.set("techStack", techStackFilter);
+    if (industryFilter) params.set("industry", industryFilter);
+    if (companyTypeFilter) params.set("companyType", companyTypeFilter);
+    if (createdFrom) params.set("createdFrom", createdFrom);
+    if (createdTo) params.set("createdTo", createdTo);
     const data = await api.prospects(params);
     setProspects(data.prospects);
     setTotal(data.pagination.total);
@@ -62,12 +75,14 @@ export default function ProspectsPage() {
   }
 
   function clearFilters() {
-    setStatusFilter(""); setTierFilter(""); setSourceFilter(""); setCountryFilter(""); setTechStackFilter("");
+    setStatusFilter(""); setTierFilter(""); setSourceFilter(""); setCountryFilter("");
+    setTechStackFilter(""); setIndustryFilter(""); setCompanyTypeFilter("");
+    setCreatedFrom(""); setCreatedTo("");
   }
 
   useEffect(() => { api.prospectFilterOptions().then(setFilterOptions).catch(() => {}); }, []);
-  useEffect(() => { setPage(1); }, [search, statusFilter, tierFilter, sourceFilter, countryFilter, techStackFilter, sortCol, sortDir]);
-  useEffect(() => { load(); }, [page, search, statusFilter, tierFilter, sourceFilter, countryFilter, techStackFilter, sortCol, sortDir]);
+  useEffect(() => { setPage(1); }, [search, statusFilter, tierFilter, sourceFilter, countryFilter, techStackFilter, industryFilter, companyTypeFilter, createdFrom, createdTo, sortCol, sortDir]);
+  useEffect(() => { load(); }, [page, search, statusFilter, tierFilter, sourceFilter, countryFilter, techStackFilter, industryFilter, companyTypeFilter, createdFrom, createdTo, sortCol, sortDir]);
 
   async function openDrawer(p: ProspectItem) {
     setSelectedId(p.id);
@@ -139,6 +154,26 @@ export default function ProspectsPage() {
           <option value="">Tech stack: todos</option>
           {filterOptions?.techStacks.map((t) => <option key={t.value} value={t.value}>{t.value} ({t.count})</option>)}
         </select>
+        <select value={industryFilter} onChange={(e) => setIndustryFilter(e.target.value)}
+          className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 outline-none">
+          <option value="">Industria: todas</option>
+          {filterOptions?.industries.map((i) => <option key={i.value ?? ""} value={i.value ?? ""}>{i.value} ({i.count})</option>)}
+        </select>
+        <select value={companyTypeFilter} onChange={(e) => setCompanyTypeFilter(e.target.value)}
+          className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 outline-none">
+          <option value="">Tipo: todos</option>
+          {filterOptions?.companyTypes.map((c) => <option key={c.value ?? ""} value={c.value ?? ""}>{c.value} ({c.count})</option>)}
+        </select>
+        <div className="flex items-center gap-1 text-xs text-slate-500">
+          <span>Desde:</span>
+          <input type="date" value={createdFrom} onChange={(e) => setCreatedFrom(e.target.value)}
+            className="text-xs px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 outline-none" />
+        </div>
+        <div className="flex items-center gap-1 text-xs text-slate-500">
+          <span>Hasta:</span>
+          <input type="date" value={createdTo} onChange={(e) => setCreatedTo(e.target.value)}
+            className="text-xs px-2 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 outline-none" />
+        </div>
         {activeFilterCount > 0 && (
           <button onClick={clearFilters} className="text-xs px-2.5 py-1.5 text-slate-500 hover:text-slate-700 flex items-center gap-1">
             <X size={11} />Limpiar ({activeFilterCount})
@@ -172,17 +207,27 @@ export default function ProspectsPage() {
             ) : prospects.length === 0 ? (
               <tr><td colSpan={8} className="py-8 text-center text-slate-400">Sin prospectos</td></tr>
             ) : prospects.map((p) => (
-              <tr key={p.id} className={`border-b border-slate-50 dark:border-slate-700/30 hover:bg-slate-50 dark:hover:bg-slate-700/20 ${selectedId === p.id ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}>
+              <tr key={p.id}
+                onClick={() => openDrawer(p)}
+                className={`border-b border-slate-50 dark:border-slate-700/30 hover:bg-slate-50 dark:hover:bg-slate-700/20 cursor-pointer ${selectedId === p.id ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}>
                 <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} className="w-3 h-3" />
                 </td>
-                <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200 cursor-pointer" onClick={() => openDrawer(p)}>{p.email}</td>
+                <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200">{p.email}</td>
                 <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{displayCompany(p.companyName, p.website, p.email)}</td>
                 <td className="py-2 px-3 text-slate-500">{p.industry ?? "—"}</td>
-                <td className="py-2 px-3"><Badge status={p.status} /></td>
+                <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                  <StatusDropdown
+                    prospectId={p.id}
+                    currentStatus={p.status}
+                    onChanged={(newStatus) => {
+                      setProspects((prev) => prev.map((x) => x.id === p.id ? { ...x, status: newStatus } : x));
+                    }}
+                  />
+                </td>
                 <td className="py-2 px-3"><TierBadge tier={p.leadTier} /></td>
                 <td className="py-2 px-3 text-slate-400">{relativeTime(p.updatedAt)}</td>
-                <td className="py-2 px-3 cursor-pointer" onClick={() => openDrawer(p)}><CaretRight size={12} className="text-slate-300" /></td>
+                <td className="py-2 px-3"><CaretRight size={12} className="text-slate-300" /></td>
               </tr>
             ))}
           </tbody>

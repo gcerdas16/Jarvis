@@ -111,6 +111,7 @@ export interface WeekDay {
   date: string; weekday: string; dayLabel: string;
   initial: WeekDayInitial[]; followUps: WeekDayFollowUp[];
   initialCount: number; followUpCount: number; followUpOverflow: number; total: number;
+  sentToday?: { initial: number; followUps: number };
 }
 export interface WeekData {
   dailyLimit: number; newPoolSize: number;

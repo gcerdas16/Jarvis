@@ -146,11 +146,12 @@ queueRouter.get("/", async (_req, res) => {
 // follow-ups fill remaining slots).
 queueRouter.get("/week", async (_req, res) => {
   try {
-    const tomorrow = startOfDay(new Date());   // was: startOfDay(addDays(new Date(), 1))
+    const todayStart = startOfDay(new Date());
+    const tomorrow = todayStart;   // was: startOfDay(addDays(new Date(), 1))
     const days = nextBusinessDays(tomorrow, WEEK_DAYS);
     const weekEnd = addDays(days[days.length - 1], 1);
 
-    const [warmup, campaign, newProspects, candidateFollowUps] = await Promise.all([
+    const [warmup, campaign, newProspects, candidateFollowUps, sentTodayRows] = await Promise.all([
       prisma.warmupState.findFirst(),
       prisma.campaign.findFirst({ where: { isActive: true } }),
       prisma.prospect.findMany({
@@ -167,6 +168,10 @@ queueRouter.get("/week", async (_req, res) => {
           id: true, email: true, companyName: true, industry: true,
           status: true, updatedAt: true, leadTier: true,
         },
+      }),
+      prisma.emailSent.findMany({
+        where: { sentAt: { gte: todayStart, lt: addDays(todayStart, 1) } },
+        select: { emailType: true },
       }),
     ]);
 
@@ -220,6 +225,11 @@ queueRouter.get("/week", async (_req, res) => {
       });
     }
 
+    const sentToday = {
+      initial: sentTodayRows.filter((e) => e.emailType === "INITIAL").length,
+      followUps: sentTodayRows.filter((e) => e.emailType !== "INITIAL").length,
+    };
+
     // Slice initials per day from the FIFO NEW pool
     const dayBlocks = days.map((date, dayIdx) => {
       const initialStart = dayIdx * dailyLimit;
@@ -245,6 +255,7 @@ queueRouter.get("/week", async (_req, res) => {
         followUpCount: followUpsCapped.length,
         followUpOverflow: followUpsOverflow,
         total: initialCapped.length + followUpsCapped.length,
+        ...(dayIdx === 0 && { sentToday }),
       };
     });
 

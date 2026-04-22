@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Calendar, Envelope, ArrowsClockwise, Warning, Info, CheckCircle } from "@phosphor-icons/react";
+import { Calendar, Envelope, ArrowsClockwise, Warning, Info, CheckCircle, PaperPlaneTilt } from "@phosphor-icons/react";
 import { api, WeekData, WeekDay, WeekDayInitial, WeekDayFollowUp, ProspectItem } from "../lib/api";
 import { TierBadge } from "../components/ui/TierBadge";
 import { Drawer } from "../components/ui/Drawer";
@@ -44,6 +44,17 @@ function DaySection({ day, dailyLimit, isToday, onProspectClick }: {
 
       {open && (
         <div className="border-t border-slate-100 dark:border-slate-700">
+          {/* Sent today banner */}
+          {day.sentToday && (day.sentToday.initial > 0 || day.sentToday.followUps > 0) && (
+            <div className="px-4 py-2.5 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-900/30 flex items-center gap-2">
+              <PaperPlaneTilt size={12} weight="fill" className="text-emerald-600 shrink-0" />
+              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                Ya enviados hoy:
+                {day.sentToday.initial > 0 && <span className="ml-1.5 font-bold">{day.sentToday.initial} iniciales</span>}
+                {day.sentToday.followUps > 0 && <span className="ml-1.5 font-bold">{day.sentToday.followUps} follow-ups</span>}
+              </span>
+            </div>
+          )}
           {/* Iniciales */}
           {day.initial.length > 0 && (
             <>

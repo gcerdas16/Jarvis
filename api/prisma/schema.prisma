@@ -299,6 +299,7 @@ model WarmupState {
   maxDailyLimit    Int      @default(30) @map("max_daily_limit")
   emailsSentToday  Int      @default(0) @map("emails_sent_today")
   lastResetDate    DateTime @default(now()) @map("last_reset_date")
+  emailsPaused     Boolean  @default(false) @map("emails_paused")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("warmup_state")

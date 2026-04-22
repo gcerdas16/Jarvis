@@ -8,9 +8,9 @@ const WEEK_DAYS = 5;
 
 // Days to wait before each follow-up after the previous email
 const FOLLOWUP_CADENCE: Record<string, { days: number; nextType: string; templateKey: string }> = {
-  CONTACTED:    { days: 3, nextType: "FOLLOW_UP_1", templateKey: "followUp1" },
-  FOLLOW_UP_1:  { days: 5, nextType: "FOLLOW_UP_2", templateKey: "followUp2" },
-  FOLLOW_UP_2:  { days: 7, nextType: "FOLLOW_UP_3", templateKey: "followUp3" },
+  CONTACTED:    { days: 9,  nextType: "FOLLOW_UP_1", templateKey: "followUp1" },
+  FOLLOW_UP_1:  { days: 15, nextType: "FOLLOW_UP_2", templateKey: "followUp2" },
+  FOLLOW_UP_2:  { days: 7,  nextType: "FOLLOW_UP_3", templateKey: "followUp3" },
 };
 
 function startOfDay(d: Date): Date {
@@ -67,15 +67,19 @@ queueRouter.get("/", async (_req, res) => {
       : await prisma.prospect.findMany({
           where: { status: "NEW" },
           take: dailyLimit,
-          include: { source: { select: { name: true } } },
+          select: {
+            id: true, email: true, companyName: true, website: true,
+            industry: true, leadTier: true, maturityScore: true,
+            source: { select: { name: true } },
+          },
           orderBy: { createdAt: "asc" },
         });
 
     // Follow-ups due tomorrow: updatedAt <= tomorrow - daysAfter
     const followUpConfigs = [
-      { status: "CONTACTED", daysAfter: 3, nextType: "FOLLOW_UP_1", templateKey: "followUp1" },
-      { status: "FOLLOW_UP_1", daysAfter: 5, nextType: "FOLLOW_UP_2", templateKey: "followUp2" },
-      { status: "FOLLOW_UP_2", daysAfter: 7, nextType: "FOLLOW_UP_3", templateKey: "followUp3" },
+      { status: "CONTACTED",   daysAfter: 9,  nextType: "FOLLOW_UP_1", templateKey: "followUp1" },
+      { status: "FOLLOW_UP_1", daysAfter: 15, nextType: "FOLLOW_UP_2", templateKey: "followUp2" },
+      { status: "FOLLOW_UP_2", daysAfter: 7,  nextType: "FOLLOW_UP_3", templateKey: "followUp3" },
     ] as const;
 
     const followUps: {
@@ -119,12 +123,14 @@ queueRouter.get("/", async (_req, res) => {
           followUp3: campaign.followUp3,
         } : null,
         initial: cappedInitial.map((p) => ({
-          id: p.id, email: p.email, companyName: p.companyName,
+          id: p.id, email: p.email, companyName: p.companyName, website: (p as any).website,
           industry: p.industry, source: (p as any).source?.name ?? "",
+          leadTier: (p as any).leadTier, maturityScore: (p as any).maturityScore,
         })),
         followUps: cappedFollowUps,
         allFollowUpsDue: followUps.length,
         hasBatchConfirmed,
+        emailsPaused: warmup?.emailsPaused ?? false,
         totalTomorrow: cappedInitial.length + cappedFollowUps.length,
       },
     });
@@ -140,7 +146,7 @@ queueRouter.get("/", async (_req, res) => {
 // follow-ups fill remaining slots).
 queueRouter.get("/week", async (_req, res) => {
   try {
-    const tomorrow = startOfDay(addDays(new Date(), 1));
+    const tomorrow = startOfDay(new Date());   // was: startOfDay(addDays(new Date(), 1))
     const days = nextBusinessDays(tomorrow, WEEK_DAYS);
     const weekEnd = addDays(days[days.length - 1], 1);
 
@@ -151,7 +157,7 @@ queueRouter.get("/week", async (_req, res) => {
         where: { status: "NEW" },
         select: {
           id: true, email: true, companyName: true, website: true, industry: true,
-          leadTier: true, country: true, createdAt: true,
+          leadTier: true, maturityScore: true, country: true, createdAt: true,
         },
         orderBy: { createdAt: "asc" },
       }),
@@ -232,6 +238,7 @@ queueRouter.get("/week", async (_req, res) => {
         initial: initialCapped.map((p) => ({
           id: p.id, email: p.email, companyName: p.companyName,
           website: p.website, industry: p.industry, leadTier: p.leadTier,
+          maturityScore: (p as any).maturityScore,
         })),
         followUps: followUpsCapped,
         initialCount: initialCapped.length,

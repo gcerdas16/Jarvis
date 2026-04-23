@@ -123,10 +123,18 @@ export interface WeekDay {
 }
 export interface WeekData {
   dailyLimit: number; newPoolSize: number; today: string; fuPoolOverflow: number;
+  emailsPaused: boolean;
   campaign: { id: string; name: string } | null;
   days: WeekDay[];
   cadence: { followUp1Days: number; followUp2Days: number; followUp3Days: number };
 }
+
+export interface SystemWarmup { emailsPaused: boolean; emailsSentToday: number; dailyLimit: number; emailsSentWeek: number; }
+export interface SystemSerper { searchesToday: number; searchesWeek: number; searchesMonth: number; }
+export interface SystemResendEvent { id: string; eventType: string; occurredAt: string; prospect: { email: string; companyName: string | null } | null; emailType: string | null; }
+export interface SystemResend { eventsByType: Record<string, number>; recentEvents: SystemResendEvent[]; }
+export interface SystemJob { jobType: string; status: string; startedAt: string; result: string | null; durationMs: number | null; }
+export interface SystemData { warmup: SystemWarmup; serper: SystemSerper; resend: SystemResend; jobs: SystemJob[]; }
 export interface ProspectsData { prospects: ProspectItem[]; pagination: { page: number; total: number; totalPages: number; limit: number }; }
 
 export interface UnsubscribeItem { id: string; email: string; reason: string | null; createdAt: string; }
@@ -174,6 +182,7 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status, note }),
     }).then((r) => r.json()),
+  system: () => get<SystemData>("/system/health"),
   overviewByDate: (date: string) => get<OverviewData>(`/metrics/overview?date=${date}`),
   dailyByDays: (days: number) => get<DailyData>(`/metrics/daily?days=${days}`),
   createProspect: (data: { email: string; companyName?: string; website?: string; industry?: string; companyType?: string; country?: string; description?: string }) =>

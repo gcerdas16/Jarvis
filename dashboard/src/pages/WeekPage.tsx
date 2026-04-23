@@ -242,12 +242,29 @@ function DaySection({ day, dailyLimit, isToday, onProspectClick }: {
 export default function WeekPage() {
   const [data, setData] = useState<WeekData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [toggling, setToggling] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawerData, setDrawerData] = useState<ProspectItem | null>(null);
 
-  useEffect(() => {
-    api.queueWeek().then((d) => { setData(d); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+  async function load() {
+    try {
+      const d = await api.queueWeek();
+      setData(d);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function handleToggle() {
+    if (!data || toggling) return;
+    setToggling(true);
+    await api.toggleEmailsPause();
+    const d = await api.queueWeek();
+    setData(d);
+    setToggling(false);
+  }
 
   async function openDrawer(id: string) {
     setSelectedId(id);
@@ -257,6 +274,8 @@ export default function WeekPage() {
 
   if (loading) return <div className="p-6 text-slate-500 text-sm">Cargando proyección semanal…</div>;
   if (!data) return <div className="p-6 text-red-500 text-sm">Error al cargar.</div>;
+
+  const paused = data.emailsPaused;
 
   const totalWeek = data.days.reduce((s, d) => s + d.total, 0);
 
@@ -269,7 +288,20 @@ export default function WeekPage() {
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">Proyección · {data.days.length} días hábiles desde hoy</p>
         </div>
-        <div className="flex gap-3 text-xs">
+        <div className="flex items-center gap-3 text-xs">
+          <button
+            onClick={handleToggle}
+            disabled={toggling}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border font-semibold text-sm transition-all disabled:opacity-60 ${paused
+              ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
+              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
+            }`}
+          >
+            <div className={`w-8 h-4 rounded-full relative transition-colors ${paused ? "bg-slate-300 dark:bg-slate-600" : "bg-green-500"}`}>
+              <div className={`w-3.5 h-3.5 bg-white rounded-full absolute top-0.5 shadow transition-all ${paused ? "left-0.5" : "left-[18px]"}`} />
+            </div>
+            <span>{toggling ? "..." : paused ? "Pausado" : "Activo"}</span>
+          </button>
           <div className="text-right">
             <p className="text-slate-400">Semana</p>
             <p className="font-bold text-slate-700 dark:text-slate-200">{totalWeek} / {data.dailyLimit * data.days.length}</p>
@@ -279,6 +311,13 @@ export default function WeekPage() {
           )}
         </div>
       </div>
+
+      {paused && (
+        <div className="rounded-xl px-4 py-3 text-sm font-semibold flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300">
+          <div className="w-2 h-2 rounded-full bg-amber-500" />
+          Envíos pausados — los emails no saldrán hasta que lo reactives
+        </div>
+      )}
 
       <div className="grid grid-cols-[1fr_240px] gap-4">
         <div className="space-y-2.5">

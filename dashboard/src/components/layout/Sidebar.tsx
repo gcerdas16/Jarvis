@@ -1,26 +1,31 @@
-import { House, Bug, Envelope, ClockClockwise, Users, Lightning, Moon, Sun, Queue, Calendar } from "@phosphor-icons/react";
+import { House, Bug, Envelope, ClockClockwise, Users, Lightning, Moon, Sun, Calendar, Gauge, X } from "@phosphor-icons/react";
 import { useTheme } from "../../hooks/useTheme";
 
 const NAV = [
   { label: "Overview", icon: House, href: "/" },
-  { label: "Cola mañana", icon: Queue, href: "/queue" },
   { label: "Semana", icon: Calendar, href: "/semana" },
-  { label: "Scrapers", icon: Bug, href: "/scrapers" },
   { label: "Emails", icon: Envelope, href: "/emails" },
-  { label: "Jobs", icon: ClockClockwise, href: "/jobs" },
   { label: "Prospects", icon: Users, href: "/prospects" },
+  { label: "Scrapers", icon: Bug, href: "/scrapers" },
+  { label: "Jobs", icon: ClockClockwise, href: "/jobs" },
+  { label: "Sistema", icon: Gauge, href: "/sistema" },
 ];
 
-export function Sidebar({ current }: { current: string }) {
+export function Sidebar({ current, onClose }: { current: string; onClose: () => void }) {
   const { dark, toggle } = useTheme();
 
   return (
     <aside className="w-60 bg-slate-800 flex flex-col flex-shrink-0">
       <div className="flex items-center gap-2 px-5 py-5 border-b border-slate-700">
-        <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-          <Lightning size={18} color="white" weight="fill" />
-        </div>
-        <span className="text-white font-bold text-lg">Jarvis</span>
+        <a href="/" className="flex items-center gap-2 flex-1 hover:opacity-80 transition-opacity">
+          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+            <Lightning size={18} color="white" weight="fill" />
+          </div>
+          <span className="text-white font-bold text-lg">Jarvis</span>
+        </a>
+        <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors p-1 rounded">
+          <X size={16} weight="bold" />
+        </button>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">

@@ -44,7 +44,7 @@ export default function OverviewPage() {
   if (loading) return <div className="p-6 text-slate-500 text-sm">Cargando...</div>;
   if (!data) return <div className="p-6 text-red-500 text-sm">Error al cargar datos.</div>;
 
-  const { kpis, activity, jobs } = data;
+  const { kpis, activity } = data;
   const today = new Date().toLocaleDateString("es-CR", { weekday: "long", day: "numeric", month: "short", year: "numeric" });
   const dateLabel = selectedDate
     ? new Date(selectedDate + "T12:00:00").toLocaleDateString("es-CR", { day: "numeric", month: "short" })
@@ -148,24 +148,6 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* Jobs status */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-        <p className="text-sm font-bold text-slate-900 dark:text-white mb-3">Estado de Jobs <span className="font-normal text-slate-400 text-xs">L-V automático</span></p>
-        <div className="grid grid-cols-3 gap-3">
-          {jobs.map((job) => {
-            const ok = job.lastRun?.status === "SUCCESS";
-            return (
-              <div key={job.type} className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3" style={{ borderLeft: `3px solid ${ok ? "#10b981" : "#f59e0b"}` }}>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">{job.name}</p>
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                  {job.lastRun ? `${relativeTime(job.lastRun.startedAt)} ✓` : "Sin datos"}
-                </p>
-                <p className="text-xs text-slate-400 mt-0.5">Próximo: {job.nextRun}</p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }

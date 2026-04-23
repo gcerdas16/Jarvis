@@ -136,7 +136,7 @@ queueRouter.get("/week", async (_req, res) => {
     const days = nextBusinessDays(todayStart, WEEK_DAYS);
     const weekEnd = addDays(days[days.length - 1], 1);
 
-    const [, campaign, newProspects, candidateFollowUps, sentTodayRows] = await Promise.all([
+    const [warmup, campaign, newProspects, candidateFollowUps, sentTodayRows] = await Promise.all([
       prisma.warmupState.findFirst(),
       prisma.campaign.findFirst({ where: { isActive: true } }),
       prisma.prospect.findMany({
@@ -253,6 +253,7 @@ queueRouter.get("/week", async (_req, res) => {
       success: true,
       data: {
         dailyLimit: INITIAL_LIMIT + FOLLOWUP_LIMIT,
+        emailsPaused: warmup?.emailsPaused ?? false,
         today: todayStart.toISOString().slice(0, 10),
         days: dayBlocks,
         newPoolSize: newProspects.length,

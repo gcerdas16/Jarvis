@@ -10,6 +10,7 @@ import { webhooksRouter } from "./routes/webhooks";
 import { unsubscribesRouter } from "./routes/unsubscribes";
 import { queueRouter } from "./routes/queue";
 import { settingsRouter } from "./routes/settings";
+import { systemRouter } from "./routes/system";
 import { startScheduler } from "./jobs/scheduler";
 
 const app = express();
@@ -36,6 +37,7 @@ app.use("/api/webhooks", webhooksRouter);
 app.use("/api/unsubscribes", unsubscribesRouter);
 app.use("/api/queue", queueRouter);
 app.use("/api/settings", settingsRouter);
+app.use("/api/system", systemRouter);
 
 if (process.env.NODE_ENV === "production") {
   startScheduler();

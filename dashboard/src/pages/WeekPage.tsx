@@ -143,7 +143,7 @@ export default function WeekPage() {
   if (loading) return <div className="p-6 text-slate-500 text-sm">Cargando proyección semanal…</div>;
   if (!data) return <div className="p-6 text-red-500 text-sm">Error al cargar.</div>;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = data.today;
   const totalWeek = data.days.reduce((s, d) => s + d.total, 0);
 
   return (

@@ -13,10 +13,19 @@ const FOLLOWUP_CADENCE: Record<string, { days: number; nextType: string; templat
   FOLLOW_UP_2:  { days: 7,  nextType: "FOLLOW_UP_3", templateKey: "followUp3" },
 };
 
+const CR_OFFSET = 6; // UTC-6, no DST
+
 function startOfDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
+}
+
+// Midnight UTC of whatever date it currently is in Costa Rica
+function todayCR(): Date {
+  const nowUTC = new Date();
+  const crDate = new Date(nowUTC.getTime() - CR_OFFSET * 60 * 60 * 1000);
+  return new Date(Date.UTC(crDate.getUTCFullYear(), crDate.getUTCMonth(), crDate.getUTCDate()));
 }
 
 function addDays(d: Date, n: number): Date {
@@ -146,8 +155,8 @@ queueRouter.get("/", async (_req, res) => {
 // follow-ups fill remaining slots).
 queueRouter.get("/week", async (_req, res) => {
   try {
-    const todayStart = startOfDay(new Date());
-    const tomorrow = todayStart;   // was: startOfDay(addDays(new Date(), 1))
+    const todayStart = todayCR();
+    const tomorrow = todayStart;
     const days = nextBusinessDays(tomorrow, WEEK_DAYS);
     const weekEnd = addDays(days[days.length - 1], 1);
 
@@ -263,6 +272,7 @@ queueRouter.get("/week", async (_req, res) => {
       success: true,
       data: {
         dailyLimit,
+        today: todayStart.toISOString().slice(0, 10),
         days: dayBlocks,
         newPoolSize: newProspects.length,
         campaign: campaign ? { id: campaign.id, name: campaign.name } : null,

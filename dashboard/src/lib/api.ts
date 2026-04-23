@@ -114,7 +114,7 @@ export interface WeekDay {
   sentToday?: { initial: number; followUps: number };
 }
 export interface WeekData {
-  dailyLimit: number; newPoolSize: number;
+  dailyLimit: number; newPoolSize: number; today: string;
   campaign: { id: string; name: string } | null;
   days: WeekDay[];
   cadence: { followUp1Days: number; followUp2Days: number; followUp3Days: number };

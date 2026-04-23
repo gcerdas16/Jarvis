@@ -6,6 +6,9 @@ export const queueRouter = Router();
 // Number of business days to project ahead in /week
 const WEEK_DAYS = 5;
 
+const INITIAL_LIMIT = 60;
+const FOLLOWUP_LIMIT = 30;
+
 // Days to wait before each follow-up after the previous email
 const FOLLOWUP_CADENCE: Record<string, { days: number; nextType: string; templateKey: string }> = {
   CONTACTED:    { days: 9,  nextType: "FOLLOW_UP_1", templateKey: "followUp1" },
@@ -69,13 +72,13 @@ queueRouter.get("/", async (_req, res) => {
     ]);
 
     const hasBatchConfirmed = confirmedBatch.length > 0;
-    const dailyLimit = warmup?.currentDailyLimit ?? 50;
+    const dailyLimit = INITIAL_LIMIT + FOLLOWUP_LIMIT;
 
     const initial = hasBatchConfirmed
       ? confirmedBatch.map((b) => b.prospect).filter((p) => p.status === "NEW")
       : await prisma.prospect.findMany({
           where: { status: "NEW" },
-          take: dailyLimit,
+          take: INITIAL_LIMIT,
           select: {
             id: true, email: true, companyName: true, website: true,
             industry: true, leadTier: true, maturityScore: true,
@@ -113,10 +116,9 @@ queueRouter.get("/", async (_req, res) => {
       }
     }
 
-    // Respect daily limit: iniciales first, then follow-ups
-    const cappedInitial = initial.slice(0, dailyLimit);
-    const remainingSlots = Math.max(0, dailyLimit - cappedInitial.length);
-    const cappedFollowUps = followUps.slice(0, remainingSlots);
+    // Separate caps: 60 initials + 30 follow-ups = 90 total
+    const cappedInitial = initial.slice(0, INITIAL_LIMIT);
+    const cappedFollowUps = followUps.slice(0, FOLLOWUP_LIMIT);
 
     res.json({
       success: true,
@@ -184,7 +186,7 @@ queueRouter.get("/week", async (_req, res) => {
       }),
     ]);
 
-    const dailyLimit = warmup?.currentDailyLimit ?? 50;
+    const dailyLimit = INITIAL_LIMIT + FOLLOWUP_LIMIT;
 
     // Bucket follow-ups by their first-due business day
     type FollowUpItem = {
@@ -241,13 +243,11 @@ queueRouter.get("/week", async (_req, res) => {
 
     // Slice initials per day from the FIFO NEW pool
     const dayBlocks = days.map((date, dayIdx) => {
-      const initialStart = dayIdx * dailyLimit;
-      const initialSlice = newProspects.slice(initialStart, initialStart + dailyLimit);
-      const initialCapped = initialSlice; // initials always within limit by construction
+      const initialStart = dayIdx * INITIAL_LIMIT;
+      const initialCapped = newProspects.slice(initialStart, initialStart + INITIAL_LIMIT);
 
-      const remainingSlots = Math.max(0, dailyLimit - initialCapped.length);
       const followUpsAll = followUpsByDay[dayIdx];
-      const followUpsCapped = followUpsAll.slice(0, remainingSlots);
+      const followUpsCapped = followUpsAll.slice(0, FOLLOWUP_LIMIT);
       const followUpsOverflow = Math.max(0, followUpsAll.length - followUpsCapped.length);
 
       return {

@@ -5,6 +5,8 @@ import { canSendEmail, incrementSentCount } from "./warmup-manager";
 import { renderTemplate } from "./template-engine";
 
 const MIN_DELAY_MS = 30_000;
+const INITIAL_DAILY = 60;
+const FOLLOWUP_DAILY = 30;
 let isProcessingQueue = false;
 let isProcessingFollowUps = false;
 
@@ -54,7 +56,7 @@ export async function processEmailQueue(): Promise<{ emailsSent: number; bounces
 
     const newProspects = confirmedBatch.length > 0
       ? confirmedBatch.map((b) => b.prospect).filter((p) => p.status === "NEW")
-      : await prisma.prospect.findMany({ where: { status: "NEW" }, take: 50 });
+      : await prisma.prospect.findMany({ where: { status: "NEW" }, take: INITIAL_DAILY });
 
     const subject = activeCampaign.subjectLine.replace(/[\n\r]/g, "").trim();
 
@@ -149,11 +151,11 @@ export async function processFollowUps(): Promise<{ emailsSent: number }> {
   try {
     const subject = `Re: ${activeCampaign.subjectLine.replace(/[\n\r]/g, "").trim()}`;
 
-    // Only CONTACTED, FOLLOW_UP_1, FOLLOW_UP_2 are eligible — manual statuses are excluded
+    // Process FU3 first so advanced prospects aren't blocked by the large FU1 backlog
     const followUpConfigs = [
-      { currentStatus: ProspectStatus.CONTACTED, nextStatus: ProspectStatus.FOLLOW_UP_1, template: activeCampaign.followUp1, emailType: "FOLLOW_UP_1" as const, daysAfter: 9 },
-      { currentStatus: ProspectStatus.FOLLOW_UP_1, nextStatus: ProspectStatus.FOLLOW_UP_2, template: activeCampaign.followUp2, emailType: "FOLLOW_UP_2" as const, daysAfter: 15 },
       { currentStatus: ProspectStatus.FOLLOW_UP_2, nextStatus: ProspectStatus.FOLLOW_UP_3, template: activeCampaign.followUp3, emailType: "FOLLOW_UP_3" as const, daysAfter: 7 },
+      { currentStatus: ProspectStatus.FOLLOW_UP_1, nextStatus: ProspectStatus.FOLLOW_UP_2, template: activeCampaign.followUp2, emailType: "FOLLOW_UP_2" as const, daysAfter: 15 },
+      { currentStatus: ProspectStatus.CONTACTED, nextStatus: ProspectStatus.FOLLOW_UP_1, template: activeCampaign.followUp1, emailType: "FOLLOW_UP_1" as const, daysAfter: 9 },
     ];
 
     for (const config of followUpConfigs) {
@@ -168,7 +170,7 @@ export async function processFollowUps(): Promise<{ emailsSent: number }> {
           status: config.currentStatus,
           updatedAt: { lte: cutoffDate },
         },
-        take: 20,
+        take: FOLLOWUP_DAILY,
       });
 
       for (const prospect of prospects) {

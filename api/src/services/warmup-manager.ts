@@ -1,6 +1,6 @@
 import { prisma } from "../utils/db";
 
-const DAILY_LIMIT = parseInt(process.env.DAILY_EMAIL_LIMIT || "50");
+const DAILY_LIMIT = parseInt(process.env.DAILY_EMAIL_LIMIT || "90");
 
 export async function getWarmupState() {
   let state = await prisma.warmupState.findFirst();

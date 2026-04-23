@@ -3,6 +3,7 @@ import { prisma } from "../utils/db";
 import { sendEmail } from "./resend-client";
 import { canSendEmail, incrementSentCount } from "./warmup-manager";
 import { renderTemplate } from "./template-engine";
+import { todayCR, addDays } from "../utils/timezone";
 
 const MIN_DELAY_MS = 30_000;
 const INITIAL_DAILY = 60;
@@ -44,10 +45,8 @@ export async function processEmailQueue(): Promise<{ emailsSent: number; bounces
   let emailsSent = 0;
 
   try {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(todayStart);
-    todayEnd.setDate(todayEnd.getDate() + 1);
+    const todayStart = todayCR();
+    const todayEnd = addDays(todayStart, 1);
 
     const confirmedBatch = await prisma.dailyBatch.findMany({
       where: { batchDate: { gte: todayStart, lt: todayEnd }, confirmed: true },
@@ -162,8 +161,7 @@ export async function processFollowUps(): Promise<{ emailsSent: number }> {
       if (!config.template) continue;
       if (!(await canSendEmail())) break;
 
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - config.daysAfter);
+      const cutoffDate = addDays(todayCR(), -config.daysAfter);
 
       const prospects = await prisma.prospect.findMany({
         where: {

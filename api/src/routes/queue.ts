@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../utils/db";
+import { todayCR, addDays as addDaysTZ } from "../utils/timezone";
 
 export const queueRouter = Router();
 
@@ -16,24 +17,14 @@ const FOLLOWUP_CADENCE: Record<string, { days: number; nextType: string; templat
   FOLLOW_UP_2:  { days: 7,  nextType: "FOLLOW_UP_3", templateKey: "followUp3" },
 };
 
-const CR_OFFSET = 6;
-
 function startOfDay(d: Date): Date {
   const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
+  x.setUTCHours(0, 0, 0, 0);
   return x;
-}
-
-function todayCR(): Date {
-  const nowUTC = new Date();
-  const crDate = new Date(nowUTC.getTime() - CR_OFFSET * 60 * 60 * 1000);
-  return new Date(Date.UTC(crDate.getUTCFullYear(), crDate.getUTCMonth(), crDate.getUTCDate()));
 }
 
 function addDays(d: Date, n: number): Date {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
+  return addDaysTZ(d, n);
 }
 
 function isWeekend(d: Date): boolean {

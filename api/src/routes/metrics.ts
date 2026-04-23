@@ -1,19 +1,8 @@
 import { Router } from "express";
 import { prisma } from "../utils/db";
+import { todayCR, addDays } from "../utils/timezone";
 
 export const metricsRouter = Router();
-
-function todayStart(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-function weekStart(): Date {
-  const d = new Date();
-  d.setDate(d.getDate() - 7);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
 
 // GET /api/metrics/overview?date=YYYY-MM-DD
 metricsRouter.get("/overview", async (req, res) => {
@@ -22,7 +11,7 @@ metricsRouter.get("/overview", async (req, res) => {
       ? req.query.date
       : null;
 
-    const today = dateParam ? new Date(dateParam + "T00:00:00") : todayStart();
+    const today = dateParam ? new Date(dateParam + "T06:00:00Z") : todayCR();
     const todayEnd = new Date(today);
     todayEnd.setDate(todayEnd.getDate() + 1);
     const week = new Date(today);
@@ -111,13 +100,11 @@ metricsRouter.get("/overview", async (req, res) => {
 metricsRouter.get("/daily", async (req, res) => {
   try {
     const daysParam = typeof req.query.days === "string" ? Math.min(parseInt(req.query.days), 30) : 7;
+    const today = todayCR();
     const days: { date: string; emails: number; leads: number; responses: number }[] = [];
     for (let i = daysParam - 1; i >= 0; i--) {
-      const start = new Date();
-      start.setDate(start.getDate() - i);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
+      const start = addDays(today, -i);
+      const end = addDays(start, 1);
 
       const [emails, leads, responses] = await Promise.all([
         prisma.emailSent.count({ where: { sentAt: { gte: start, lt: end } } }),
@@ -125,7 +112,7 @@ metricsRouter.get("/daily", async (req, res) => {
         prisma.response.count({ where: { receivedAt: { gte: start, lt: end } } }),
       ]);
 
-      const label = i === 0 ? "Hoy" : ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][start.getDay()];
+      const label = i === 0 ? "Hoy" : ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][start.getUTCDay()];
       days.push({ date: label, emails, leads: leads._sum.prospectsNew ?? 0, responses });
     }
     res.json({ success: true, data: { days } });
@@ -138,7 +125,7 @@ metricsRouter.get("/daily", async (req, res) => {
 metricsRouter.get("/scraper/today", async (req, res) => {
   try {
     const dateParam = typeof req.query.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : null;
-    const today = dateParam ? new Date(dateParam + "T00:00:00") : todayStart();
+    const today = dateParam ? new Date(dateParam + "T06:00:00Z") : todayCR();
     const todayEnd = new Date(today);
     todayEnd.setDate(todayEnd.getDate() + 1);
     const isToday = !dateParam;
@@ -227,19 +214,17 @@ metricsRouter.get("/scraper/keywords", async (_req, res) => {
 // GET /api/metrics/scraper/daily — 7-day bar chart
 metricsRouter.get("/scraper/daily", async (_req, res) => {
   try {
+    const todayScraper = todayCR();
     const days: { date: string; leads: number }[] = [];
     for (let i = 6; i >= 0; i--) {
-      const start = new Date();
-      start.setDate(start.getDate() - i);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
+      const start = addDays(todayScraper, -i);
+      const end = addDays(start, 1);
 
       const agg = await prisma.scrapeLog.aggregate({
         where: { startedAt: { gte: start, lt: end } },
         _sum: { prospectsNew: true },
       });
-      const label = i === 0 ? "Hoy" : ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][start.getDay()];
+      const label = i === 0 ? "Hoy" : ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][start.getUTCDay()];
       days.push({ date: label, leads: agg._sum.prospectsNew ?? 0 });
     }
     res.json({ success: true, data: { days } });

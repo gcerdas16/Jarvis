@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../utils/db";
 import { z } from "zod";
+import { todayCR, addDays } from "../utils/timezone";
 
 export const emailsRouter = Router();
 
@@ -37,9 +38,9 @@ emailsRouter.get("/", async (req, res) => {
     if (q.status === "bounced") where.prospect = { status: "BOUNCED" };
     if (q.status === "replied") where.prospect = { status: "RESPONDED" };
 
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(today); todayEnd.setDate(todayEnd.getDate() + 1);
-    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7); weekAgo.setHours(0, 0, 0, 0);
+    const today = todayCR();
+    const todayEnd = addDays(today, 1);
+    const weekAgo = addDays(today, -7);
 
     const [emails, total, kpis] = await Promise.all([
       prisma.emailSent.findMany({

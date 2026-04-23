@@ -49,17 +49,27 @@ function DaySection({ day, dailyLimit, isToday, onProspectClick }: {
 
       {open && (
         <div className="border-t border-slate-100 dark:border-slate-700">
-          {/* Sent today banner */}
-          {day.sentToday && (day.sentToday.initial > 0 || day.sentToday.followUps > 0) && (
-            <div className="px-4 py-2.5 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-900/30 flex items-center gap-2">
-              <PaperPlaneTilt size={12} weight="fill" className="text-emerald-600 shrink-0" />
-              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-                Ya enviados hoy:
-                {day.sentToday.initial > 0 && <span className="ml-1.5 font-bold">{day.sentToday.initial} iniciales</span>}
-                {day.sentToday.followUps > 0 && <span className="ml-1.5 font-bold">{day.sentToday.followUps} follow-ups</span>}
-              </span>
+          {/* Today: show sent summary instead of the pending list (which would show tomorrow's prospects) */}
+          {day.sentToday ? (
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <PaperPlaneTilt size={13} weight="fill" className="text-emerald-600" />
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">Enviados hoy</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-900/30 px-4 py-3 text-center">
+                  <p className="text-2xl font-extrabold text-blue-700 dark:text-blue-300">{day.sentToday.initial}</p>
+                  <p className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold mt-0.5">Iniciales</p>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-900/30 px-4 py-3 text-center">
+                  <p className="text-2xl font-extrabold text-amber-700 dark:text-amber-300">{day.sentToday.followUps}</p>
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">Follow-ups</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 text-center">Ver detalle completo en la sección Emails</p>
             </div>
-          )}
+          ) : (
+          <>
           {/* Iniciales */}
           {day.initial.length > 0 && (
             <>
@@ -117,6 +127,8 @@ function DaySection({ day, dailyLimit, isToday, onProspectClick }: {
 
           {day.followUpOverflow > 0 && (
             <p className="px-4 py-2 text-[10px] text-amber-500 font-medium">+{day.followUpOverflow} follow-ups adicionales pasan al día siguiente</p>
+          )}
+          </>
           )}
         </div>
       )}

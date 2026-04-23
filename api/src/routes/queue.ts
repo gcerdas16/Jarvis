@@ -3,20 +3,20 @@ import { prisma } from "../utils/db";
 
 export const queueRouter = Router();
 
-// Number of business days to project ahead in /week
 const WEEK_DAYS = 5;
-
 const INITIAL_LIMIT = 60;
 const FOLLOWUP_LIMIT = 30;
 
-// Days to wait before each follow-up after the previous email
+// FU3 (status=FOLLOW_UP_2) sent first, matching email-engine order
+const FU_PRIORITY: Record<string, number> = { FOLLOW_UP_2: 0, FOLLOW_UP_1: 1, CONTACTED: 2 };
+
 const FOLLOWUP_CADENCE: Record<string, { days: number; nextType: string; templateKey: string }> = {
   CONTACTED:    { days: 9,  nextType: "FOLLOW_UP_1", templateKey: "followUp1" },
   FOLLOW_UP_1:  { days: 15, nextType: "FOLLOW_UP_2", templateKey: "followUp2" },
   FOLLOW_UP_2:  { days: 7,  nextType: "FOLLOW_UP_3", templateKey: "followUp3" },
 };
 
-const CR_OFFSET = 6; // UTC-6, no DST
+const CR_OFFSET = 6;
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -24,7 +24,6 @@ function startOfDay(d: Date): Date {
   return x;
 }
 
-// Midnight UTC of whatever date it currently is in Costa Rica
 function todayCR(): Date {
   const nowUTC = new Date();
   const crDate = new Date(nowUTC.getTime() - CR_OFFSET * 60 * 60 * 1000);
@@ -42,7 +41,6 @@ function isWeekend(d: Date): boolean {
   return day === 0 || day === 6;
 }
 
-// Returns the next N business days starting from `from` (inclusive)
 function nextBusinessDays(from: Date, count: number): Date[] {
   const out: Date[] = [];
   let cursor = startOfDay(from);
@@ -53,7 +51,7 @@ function nextBusinessDays(from: Date, count: number): Date[] {
   return out;
 }
 
-// GET /api/queue — tomorrow's planned sends + campaign + limits
+// GET /api/queue — tomorrow's planned sends
 queueRouter.get("/", async (_req, res) => {
   try {
     const tomorrow = new Date();
@@ -72,7 +70,6 @@ queueRouter.get("/", async (_req, res) => {
     ]);
 
     const hasBatchConfirmed = confirmedBatch.length > 0;
-    const dailyLimit = INITIAL_LIMIT + FOLLOWUP_LIMIT;
 
     const initial = hasBatchConfirmed
       ? confirmedBatch.map((b) => b.prospect).filter((p) => p.status === "NEW")
@@ -87,7 +84,6 @@ queueRouter.get("/", async (_req, res) => {
           orderBy: { createdAt: "asc" },
         });
 
-    // Follow-ups due tomorrow: updatedAt <= tomorrow - daysAfter
     const followUpConfigs = [
       { status: "CONTACTED",   daysAfter: 9,  nextType: "FOLLOW_UP_1", templateKey: "followUp1" },
       { status: "FOLLOW_UP_1", daysAfter: 15, nextType: "FOLLOW_UP_2", templateKey: "followUp2" },
@@ -103,35 +99,26 @@ queueRouter.get("/", async (_req, res) => {
       const cutoff = new Date(tomorrow);
       cutoff.setDate(cutoff.getDate() - config.daysAfter);
       const hasTemplate = !!(campaign as any)?.[config.templateKey];
-
       const prospects = await prisma.prospect.findMany({
         where: { status: config.status as any, updatedAt: { lte: cutoff } },
         select: { id: true, email: true, companyName: true, industry: true, status: true, updatedAt: true },
         orderBy: { updatedAt: "asc" },
         take: 100,
       });
-
-      for (const p of prospects) {
-        followUps.push({ ...p, nextEmailType: config.nextType, hasTemplate });
-      }
+      for (const p of prospects) followUps.push({ ...p, nextEmailType: config.nextType, hasTemplate });
     }
 
-    // Separate caps: 60 initials + 30 follow-ups = 90 total
     const cappedInitial = initial.slice(0, INITIAL_LIMIT);
     const cappedFollowUps = followUps.slice(0, FOLLOWUP_LIMIT);
 
     res.json({
       success: true,
       data: {
-        dailyLimit,
+        dailyLimit: INITIAL_LIMIT + FOLLOWUP_LIMIT,
         campaign: campaign ? {
-          id: campaign.id,
-          name: campaign.name,
-          subjectLine: campaign.subjectLine,
-          bodyTemplate: campaign.bodyTemplate,
-          followUp1: campaign.followUp1,
-          followUp2: campaign.followUp2,
-          followUp3: campaign.followUp3,
+          id: campaign.id, name: campaign.name, subjectLine: campaign.subjectLine,
+          bodyTemplate: campaign.bodyTemplate, followUp1: campaign.followUp1,
+          followUp2: campaign.followUp2, followUp3: campaign.followUp3,
         } : null,
         initial: cappedInitial.map((p) => ({
           id: p.id, email: p.email, companyName: p.companyName, website: (p as any).website,
@@ -151,25 +138,21 @@ queueRouter.get("/", async (_req, res) => {
   }
 });
 
-// GET /api/queue/week — projection of next 5 business days
-// Each prospect appears in exactly one day's bucket: the FIRST business day on
-// which it becomes due. Daily limit is enforced per day (initials first,
-// follow-ups fill remaining slots).
+// GET /api/queue/week — 5-day projection
 queueRouter.get("/week", async (_req, res) => {
   try {
     const todayStart = todayCR();
-    const tomorrow = todayStart;
-    const days = nextBusinessDays(tomorrow, WEEK_DAYS);
+    const days = nextBusinessDays(todayStart, WEEK_DAYS);
     const weekEnd = addDays(days[days.length - 1], 1);
 
-    const [warmup, campaign, newProspects, candidateFollowUps, sentTodayRows] = await Promise.all([
+    const [, campaign, newProspects, candidateFollowUps, sentTodayRows] = await Promise.all([
       prisma.warmupState.findFirst(),
       prisma.campaign.findFirst({ where: { isActive: true } }),
       prisma.prospect.findMany({
         where: { status: "NEW" },
         select: {
           id: true, email: true, companyName: true, website: true, industry: true,
-          leadTier: true, maturityScore: true, country: true, createdAt: true,
+          leadTier: true, maturityScore: true, createdAt: true,
         },
         orderBy: { createdAt: "asc" },
       }),
@@ -182,74 +165,81 @@ queueRouter.get("/week", async (_req, res) => {
       }),
       prisma.emailSent.findMany({
         where: { sentAt: { gte: todayStart, lt: addDays(todayStart, 1) } },
-        select: { emailType: true },
+        select: {
+          emailType: true,
+          prospect: {
+            select: {
+              id: true, email: true, companyName: true, website: true,
+              industry: true, leadTier: true, maturityScore: true,
+            },
+          },
+        },
       }),
     ]);
 
-    const dailyLimit = INITIAL_LIMIT + FOLLOWUP_LIMIT;
-
-    // Bucket follow-ups by their first-due business day
     type FollowUpItem = {
       id: string; email: string; companyName: string | null; industry: string | null;
       status: string; updatedAt: Date; nextEmailType: string;
       hasTemplate: boolean; isOverdue: boolean; leadTier: string | null;
     };
-    const followUpsByDay: FollowUpItem[][] = days.map(() => []);
+
+    const sortByPriority = (arr: FollowUpItem[]) =>
+      arr.sort((a, b) => {
+        const pa = FU_PRIORITY[a.status] ?? 3;
+        const pb = FU_PRIORITY[b.status] ?? 3;
+        if (pa !== pb) return pa - pb;
+        return a.updatedAt.getTime() - b.updatedAt.getTime();
+      });
+
+    // Build rolling queue: overdue items first, future items keyed by due date
+    const overdueQueue: FollowUpItem[] = [];
+    const futureByDate: Map<string, FollowUpItem[]> = new Map();
 
     for (const p of candidateFollowUps) {
       const cadence = FOLLOWUP_CADENCE[p.status];
       if (!cadence) continue;
-
       const dueDate = startOfDay(addDays(p.updatedAt, cadence.days));
-      let bucketIdx = -1;
-      let isOverdue = false;
-
-      if (dueDate < tomorrow) {
-        // Overdue: assign to first day in projection
-        bucketIdx = 0;
-        isOverdue = true;
-      } else if (dueDate < weekEnd) {
-        // Find the first business day on or after dueDate
-        for (let i = 0; i < days.length; i++) {
-          if (days[i].getTime() >= dueDate.getTime()) {
-            bucketIdx = i;
-            break;
-          }
-        }
-      }
-
-      if (bucketIdx === -1) continue; // Outside this week
-
       const hasTemplate = !!(campaign as any)?.[cadence.templateKey];
-      followUpsByDay[bucketIdx].push({
+      const item: FollowUpItem = {
         id: p.id, email: p.email, companyName: p.companyName, industry: p.industry,
         status: p.status, updatedAt: p.updatedAt, nextEmailType: cadence.nextType,
-        hasTemplate, isOverdue, leadTier: p.leadTier,
-      });
+        hasTemplate, isOverdue: dueDate < todayStart, leadTier: p.leadTier,
+      };
+      if (dueDate < todayStart) {
+        overdueQueue.push(item);
+      } else if (dueDate < weekEnd) {
+        const dateStr = dueDate.toISOString().slice(0, 10);
+        if (!futureByDate.has(dateStr)) futureByDate.set(dateStr, []);
+        futureByDate.get(dateStr)!.push(item);
+      }
     }
 
-    // Sort each day's follow-ups by overdue first, then oldest updatedAt
-    for (const bucket of followUpsByDay) {
-      bucket.sort((a, b) => {
-        if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
-        return a.updatedAt.getTime() - b.updatedAt.getTime();
-      });
+    sortByPriority(overdueQueue);
+
+    // Queue-drain: each day takes up to FOLLOWUP_LIMIT from rolling queue
+    const followUpsByDay: FollowUpItem[][] = days.map(() => []);
+    for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
+      const dayStr = days[dayIdx].toISOString().slice(0, 10);
+      const dueToday = futureByDate.get(dayStr) ?? [];
+      sortByPriority(dueToday);
+      overdueQueue.push(...dueToday);
+      followUpsByDay[dayIdx] = overdueQueue.splice(0, FOLLOWUP_LIMIT);
     }
 
+    const fuPoolOverflow = overdueQueue.length;
+
+    const sentTodayInitials = sentTodayRows.filter((e) => e.emailType === "INITIAL").map((e) => e.prospect);
+    const sentTodayFollowUps = sentTodayRows.filter((e) => e.emailType !== "INITIAL").map((e) => ({ ...e.prospect, emailType: e.emailType }));
     const sentToday = {
-      initial: sentTodayRows.filter((e) => e.emailType === "INITIAL").length,
-      followUps: sentTodayRows.filter((e) => e.emailType !== "INITIAL").length,
+      initial: sentTodayInitials.length,
+      followUps: sentTodayFollowUps.length,
+      initialList: sentTodayInitials,
+      followUpList: sentTodayFollowUps,
     };
 
-    // Slice initials per day from the FIFO NEW pool
     const dayBlocks = days.map((date, dayIdx) => {
-      const initialStart = dayIdx * INITIAL_LIMIT;
-      const initialCapped = newProspects.slice(initialStart, initialStart + INITIAL_LIMIT);
-
-      const followUpsAll = followUpsByDay[dayIdx];
-      const followUpsCapped = followUpsAll.slice(0, FOLLOWUP_LIMIT);
-      const followUpsOverflow = Math.max(0, followUpsAll.length - followUpsCapped.length);
-
+      const initialCapped = newProspects.slice(dayIdx * INITIAL_LIMIT, (dayIdx + 1) * INITIAL_LIMIT);
+      const followUpsForDay = followUpsByDay[dayIdx];
       return {
         date: date.toISOString().slice(0, 10),
         weekday: date.toLocaleDateString("es-CR", { weekday: "long" }),
@@ -259,11 +249,11 @@ queueRouter.get("/week", async (_req, res) => {
           website: p.website, industry: p.industry, leadTier: p.leadTier,
           maturityScore: (p as any).maturityScore,
         })),
-        followUps: followUpsCapped,
+        followUps: followUpsForDay,
         initialCount: initialCapped.length,
-        followUpCount: followUpsCapped.length,
-        followUpOverflow: followUpsOverflow,
-        total: initialCapped.length + followUpsCapped.length,
+        followUpCount: followUpsForDay.length,
+        followUpOverflow: 0,
+        total: initialCapped.length + followUpsForDay.length,
         ...(dayIdx === 0 && { sentToday }),
       };
     });
@@ -271,10 +261,11 @@ queueRouter.get("/week", async (_req, res) => {
     res.json({
       success: true,
       data: {
-        dailyLimit,
+        dailyLimit: INITIAL_LIMIT + FOLLOWUP_LIMIT,
         today: todayStart.toISOString().slice(0, 10),
         days: dayBlocks,
         newPoolSize: newProspects.length,
+        fuPoolOverflow,
         campaign: campaign ? { id: campaign.id, name: campaign.name } : null,
         cadence: {
           followUp1Days: FOLLOWUP_CADENCE.CONTACTED.days,

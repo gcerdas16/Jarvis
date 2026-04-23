@@ -107,14 +107,22 @@ export interface WeekDayFollowUp {
   status: string; updatedAt: string; nextEmailType: string;
   hasTemplate: boolean; isOverdue: boolean; leadTier: string | null;
 }
+export interface WeekDaySentItem {
+  id: string; email: string; companyName: string | null; website?: string | null;
+  industry: string | null; leadTier: string | null; maturityScore: number | null;
+}
+export interface WeekDaySentFollowUp extends WeekDaySentItem { emailType: string; }
 export interface WeekDay {
   date: string; weekday: string; dayLabel: string;
   initial: WeekDayInitial[]; followUps: WeekDayFollowUp[];
   initialCount: number; followUpCount: number; followUpOverflow: number; total: number;
-  sentToday?: { initial: number; followUps: number };
+  sentToday?: {
+    initial: number; followUps: number;
+    initialList: WeekDaySentItem[]; followUpList: WeekDaySentFollowUp[];
+  };
 }
 export interface WeekData {
-  dailyLimit: number; newPoolSize: number; today: string;
+  dailyLimit: number; newPoolSize: number; today: string; fuPoolOverflow: number;
   campaign: { id: string; name: string } | null;
   days: WeekDay[];
   cadence: { followUp1Days: number; followUp2Days: number; followUp3Days: number };

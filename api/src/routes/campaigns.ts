@@ -39,6 +39,32 @@ campaignsRouter.post("/", async (req, res) => {
   }
 });
 
+campaignsRouter.patch("/:id", async (req, res) => {
+  try {
+    const patchSchema = z.object({
+      name: z.string().min(1).optional(),
+      subjectLine: z.string().min(1).optional(),
+      bodyTemplate: z.string().min(1).optional(),
+      followUp1: z.string().optional(),
+      followUp2: z.string().optional(),
+      followUp3: z.string().optional(),
+    });
+    const data = patchSchema.parse(req.body);
+    const campaign = await prisma.campaign.update({
+      where: { id: req.params.id },
+      data,
+    });
+    res.json({ success: true, data: campaign });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error instanceof z.ZodError
+        ? error.errors.map((e) => e.message).join(", ")
+        : "Failed to update campaign",
+    });
+  }
+});
+
 campaignsRouter.patch("/:id/activate", async (req, res) => {
   try {
     await prisma.campaign.updateMany({ data: { isActive: false } });

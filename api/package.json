@@ -14,7 +14,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "seed:campaign": "tsx src/scripts/seed-campaign.ts",
-    "test:email": "tsx src/scripts/send-test.ts"
+    "test:email": "tsx src/scripts/send-test.ts",
+    "clean:emails": "tsx src/scripts/clean-bad-emails.ts"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.700.0",

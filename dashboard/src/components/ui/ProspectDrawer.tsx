@@ -4,7 +4,7 @@ import { api, ProspectItem, ProspectNote, StatusHistoryItem } from "../../lib/ap
 import { Badge } from "./Badge";
 import { formatDate } from "../../lib/utils";
 
-const MANUAL_STATUS_SET = new Set(["REUNION_AGENDADA", "REUNION_REALIZADA", "PROPUESTA_ENVIADA", "CLIENTE", "NO_INTERESADO", "REVISITAR"]);
+const MANUAL_STATUS_SET = new Set(["REUNION_AGENDADA", "REUNION_REALIZADA", "PROPUESTA_ENVIADA", "CLIENTE", "NO_INTERESADO", "REVISITAR", "FASE1_RESPONDIO_CORREO"]);
 
 export const NOTE_TYPES = [
   { value: "GENERAL", label: "Nota", color: "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300" },
@@ -42,10 +42,16 @@ export function ProspectDrawerContent({ drawerData, onNoteAdded, onStatusChanged
   async function submitNote() {
     if (!noteText.trim()) return;
     setSaving(true);
-    await api.addNote(drawerData.id, noteType, noteText.trim());
-    setNoteText("");
-    setSaving(false);
-    onNoteAdded();
+    try {
+      const result = await api.addNote(drawerData.id, noteType, noteText.trim());
+      if (!result.success) throw new Error(result.error ?? "Error al guardar");
+      setNoteText("");
+      onNoteAdded();
+    } catch (err) {
+      alert("No se pudo guardar la nota. Intenta de nuevo.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   type TLItem =

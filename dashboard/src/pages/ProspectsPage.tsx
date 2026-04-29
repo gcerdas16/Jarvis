@@ -12,7 +12,7 @@ const STATUS_OPTIONS = [
   "", "NEW", "CONTACTED", "FOLLOW_UP_1", "FOLLOW_UP_2", "FOLLOW_UP_3",
   "RESPONDED", "BOUNCED", "UNSUBSCRIBED",
   "REUNION_AGENDADA", "REUNION_REALIZADA", "PROPUESTA_ENVIADA",
-  "CLIENTE", "NO_INTERESADO", "REVISITAR",
+  "CLIENTE", "NO_INTERESADO", "REVISITAR", "FASE1_RESPONDIO_CORREO",
 ];
 const LIMIT = 25;
 
@@ -29,8 +29,9 @@ const STATUS_CARD_COLORS: Record<string, string> = {
   REUNION_REALIZADA: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
   PROPUESTA_ENVIADA: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100",
   CLIENTE:           "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100",
-  NO_INTERESADO:     "bg-red-50 text-red-600 border-red-200 hover:bg-red-100",
-  REVISITAR:         "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100",
+  NO_INTERESADO:          "bg-red-50 text-red-600 border-red-200 hover:bg-red-100",
+  REVISITAR:              "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100",
+  FASE1_RESPONDIO_CORREO: "bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -39,6 +40,7 @@ const STATUS_LABELS: Record<string, string> = {
   BOUNCED: "Rebotados", UNSUBSCRIBED: "Desuscritos", REUNION_AGENDADA: "Reunión agendada",
   REUNION_REALIZADA: "Reunión realizada", PROPUESTA_ENVIADA: "Propuesta enviada",
   CLIENTE: "Clientes", NO_INTERESADO: "No interesado", REVISITAR: "Revisitar",
+  FASE1_RESPONDIO_CORREO: "Fase 1 - Respondió",
 };
 
 type SortCol = "email" | "companyName" | "industry" | "status" | "updatedAt" | "maturityScore";

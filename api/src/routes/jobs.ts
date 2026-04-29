@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { prisma } from "../utils/db";
 import { z } from "zod";
+import { runWithJobLog } from "../jobs/runner";
+import { processEmailQueue, processFollowUps } from "../services/email-engine";
 
 export const jobsRouter = Router();
 
@@ -58,7 +60,7 @@ jobsRouter.get("/status", async (_req, res) => {
           {
             type: "FOLLOW_UPS",
             name: "Follow-ups",
-            schedule: "10:00am L-V",
+            schedule: "8:05am L-V",
             lastRun: followupRun
               ? {
                   startedAt: followupRun.startedAt,
@@ -67,7 +69,7 @@ jobsRouter.get("/status", async (_req, res) => {
                   durationMs: followupRun.durationMs,
                 }
               : null,
-            nextRun: getNextWeekdayRun(10, 0),
+            nextRun: getNextWeekdayRun(8, 5),
           },
           {
             type: "SCRAPER",
@@ -177,5 +179,22 @@ jobsRouter.get("/history", async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(400).json({ success: false, error: "Failed to fetch job history" });
+  }
+});
+
+const runSchema = z.object({
+  type: z.enum(["EMAIL_SEND", "FOLLOW_UPS"]),
+});
+
+// POST /api/jobs/run — manually trigger a job
+jobsRouter.post("/run", async (req, res) => {
+  try {
+    const { type } = runSchema.parse(req.body);
+    const fn = type === "EMAIL_SEND" ? processEmailQueue : processFollowUps;
+    // Respond immediately — job runs in background
+    res.json({ success: true, message: `${type} triggered` });
+    runWithJobLog(type, fn).catch((e) => console.error(`[Jobs] ${type} manual run error:`, e));
+  } catch (e) {
+    res.status(400).json({ success: false, error: e instanceof z.ZodError ? e.errors[0].message : "Invalid request" });
   }
 });

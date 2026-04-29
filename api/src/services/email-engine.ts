@@ -11,6 +11,23 @@ const FOLLOWUP_DAILY = 30;
 let isProcessingQueue = false;
 let isProcessingFollowUps = false;
 
+const GENERIC_DOMAINS = new Set([
+  "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com",
+  "icloud.com", "aol.com", "protonmail.com", "mail.com", "msn.com",
+]);
+
+function companyKey(email: string, companyName: string | null, website: string | null): string {
+  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+  if (domain && !GENERIC_DOMAINS.has(domain)) return domain;
+  if (website) {
+    try {
+      const hostname = new URL(website.startsWith("http") ? website : `https://${website}`).hostname;
+      return hostname.replace(/^www\./, "");
+    } catch { /* ignore */ }
+  }
+  return companyName?.toLowerCase().trim() ?? email;
+}
+
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -53,9 +70,29 @@ export async function processEmailQueue(): Promise<{ emailsSent: number; bounces
       include: { prospect: true },
     });
 
-    const newProspects = confirmedBatch.length > 0
-      ? confirmedBatch.map((b) => b.prospect).filter((p) => p.status === "NEW")
-      : await prisma.prospect.findMany({ where: { status: "NEW" }, take: INITIAL_DAILY });
+    let newProspects;
+    if (confirmedBatch.length > 0) {
+      newProspects = confirmedBatch.map((b) => b.prospect).filter((p) => p.status === "NEW");
+    } else {
+      // Load buffer, group by company domain, fill batch with complete groups
+      const buffer = await prisma.prospect.findMany({
+        where: { status: "NEW" },
+        take: INITIAL_DAILY * 5,
+        orderBy: { createdAt: "asc" },
+      });
+      const groups = new Map<string, typeof buffer>();
+      for (const p of buffer) {
+        const key = companyKey(p.email, p.companyName, p.website ?? null);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(p);
+      }
+      const selected: typeof buffer = [];
+      for (const [, group] of groups) {
+        if (selected.length >= INITIAL_DAILY) break;
+        selected.push(...group);
+      }
+      newProspects = selected;
+    }
 
     const subject = activeCampaign.subjectLine.replace(/[\n\r]/g, "").trim();
 

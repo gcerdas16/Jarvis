@@ -8,6 +8,62 @@ const WEEK_DAYS = 5;
 const INITIAL_LIMIT = 60;
 const FOLLOWUP_LIMIT = 30;
 
+const GENERIC_DOMAINS = new Set([
+  "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com",
+  "icloud.com", "aol.com", "protonmail.com", "mail.com", "msn.com",
+]);
+
+function companyKey(email: string, companyName: string | null, website: string | null): string {
+  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+  if (domain && !GENERIC_DOMAINS.has(domain)) return domain;
+  if (website) {
+    try {
+      const hostname = new URL(website.startsWith("http") ? website : `https://${website}`).hostname;
+      return hostname.replace(/^www\./, "");
+    } catch { /* ignore */ }
+  }
+  return companyName?.toLowerCase().trim() ?? email;
+}
+
+function groupByCompany<T extends { email: string; companyName: string | null; website?: string | null }>(
+  prospects: T[]
+): T[] {
+  const groups = new Map<string, T[]>();
+  for (const p of prospects) {
+    const key = companyKey(p.email, p.companyName, p.website ?? null);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(p);
+  }
+  const selected: T[] = [];
+  for (const [, group] of groups) {
+    if (selected.length >= INITIAL_LIMIT) break;
+    selected.push(...group);
+  }
+  return selected;
+}
+
+function assignGroupsToDays<T extends { email: string; companyName: string | null; website?: string | null }>(
+  prospects: T[],
+  dayCount: number,
+  limitPerDay: number
+): T[][] {
+  const groups = new Map<string, T[]>();
+  for (const p of prospects) {
+    const key = companyKey(p.email, p.companyName, p.website ?? null);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(p);
+  }
+  const days: T[][] = Array.from({ length: dayCount }, () => []);
+  let dayIdx = 0;
+  for (const [, group] of groups) {
+    if (dayIdx >= dayCount) break;
+    if (days[dayIdx].length >= limitPerDay) dayIdx++;
+    if (dayIdx >= dayCount) break;
+    days[dayIdx].push(...group);
+  }
+  return days;
+}
+
 // FU3 (status=FOLLOW_UP_2) sent first, matching email-engine order
 const FU_PRIORITY: Record<string, number> = { FOLLOW_UP_2: 0, FOLLOW_UP_1: 1, CONTACTED: 2 };
 
@@ -62,18 +118,22 @@ queueRouter.get("/", async (_req, res) => {
 
     const hasBatchConfirmed = confirmedBatch.length > 0;
 
-    const initial = hasBatchConfirmed
-      ? confirmedBatch.map((b) => b.prospect).filter((p) => p.status === "NEW")
-      : await prisma.prospect.findMany({
-          where: { status: "NEW" },
-          take: INITIAL_LIMIT,
-          select: {
-            id: true, email: true, companyName: true, website: true,
-            industry: true, leadTier: true, maturityScore: true,
-            source: { select: { name: true } },
-          },
-          orderBy: { createdAt: "asc" },
-        });
+    let initial;
+    if (hasBatchConfirmed) {
+      initial = confirmedBatch.map((b) => b.prospect).filter((p) => p.status === "NEW");
+    } else {
+      const buffer = await prisma.prospect.findMany({
+        where: { status: "NEW" },
+        take: INITIAL_LIMIT * 5,
+        select: {
+          id: true, email: true, companyName: true, website: true,
+          industry: true, leadTier: true, maturityScore: true,
+          source: { select: { name: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+      initial = groupByCompany(buffer);
+    }
 
     const followUpConfigs = [
       { status: "CONTACTED",   daysAfter: 9,  nextType: "FOLLOW_UP_1", templateKey: "followUp1" },
@@ -228,8 +288,10 @@ queueRouter.get("/week", async (_req, res) => {
       followUpList: sentTodayFollowUps,
     };
 
+    const initialsByDay = assignGroupsToDays(newProspects, WEEK_DAYS, INITIAL_LIMIT);
+
     const dayBlocks = days.map((date, dayIdx) => {
-      const initialCapped = newProspects.slice(dayIdx * INITIAL_LIMIT, (dayIdx + 1) * INITIAL_LIMIT);
+      const initialCapped = initialsByDay[dayIdx] ?? [];
       const followUpsForDay = followUpsByDay[dayIdx];
       return {
         date: date.toISOString().slice(0, 10),

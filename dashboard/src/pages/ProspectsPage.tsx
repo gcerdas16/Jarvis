@@ -326,7 +326,7 @@ export default function ProspectsPage() {
         {drawerData && (
           <ProspectDrawerContent
             drawerData={drawerData}
-            onNoteAdded={() => api.prospect(drawerData.id).then(setDrawerData)}
+            onNoteAdded={() => api.prospect(drawerData.id).then(setDrawerData).catch(() => {})}
           />
         )}
       </Drawer>

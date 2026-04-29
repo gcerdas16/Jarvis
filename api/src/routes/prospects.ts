@@ -243,7 +243,7 @@ prospectsRouter.post("/", async (req, res) => {
 
 const MANUAL_STATUSES = [
   "REUNION_AGENDADA", "REUNION_REALIZADA", "PROPUESTA_ENVIADA",
-  "CLIENTE", "NO_INTERESADO", "REVISITAR",
+  "CLIENTE", "NO_INTERESADO", "REVISITAR", "FASE1_RESPONDIO_CORREO",
 ] as const;
 
 const statusChangeSchema = z.object({

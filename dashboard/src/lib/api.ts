@@ -79,18 +79,19 @@ export interface StatusHistoryItem {
 
 export const MANUAL_STATUSES = [
   "REUNION_AGENDADA", "REUNION_REALIZADA", "PROPUESTA_ENVIADA",
-  "CLIENTE", "NO_INTERESADO", "REVISITAR",
+  "CLIENTE", "NO_INTERESADO", "REVISITAR", "FASE1_RESPONDIO_CORREO",
 ] as const;
 
 export type ManualStatus = typeof MANUAL_STATUSES[number];
 
 export const MANUAL_STATUS_LABELS: Record<ManualStatus, string> = {
-  REUNION_AGENDADA:  "Reunión agendada",
-  REUNION_REALIZADA: "Reunión realizada",
-  PROPUESTA_ENVIADA: "Propuesta enviada",
-  CLIENTE:           "Cliente",
-  NO_INTERESADO:     "No interesado",
-  REVISITAR:         "Revisitar",
+  REUNION_AGENDADA:       "Reunión agendada",
+  REUNION_REALIZADA:      "Reunión realizada",
+  PROPUESTA_ENVIADA:      "Propuesta enviada",
+  CLIENTE:                "Cliente",
+  NO_INTERESADO:          "No interesado",
+  REVISITAR:              "Revisitar",
+  FASE1_RESPONDIO_CORREO: "Fase 1 - Cliente Respondió Correo",
 };
 
 export interface QueueItem { id: string; email: string; companyName: string | null; industry: string | null; source: string; leadTier: string | null; maturityScore: number | null; website: string | null; }

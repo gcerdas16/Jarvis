@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "ProspectStatus" ADD VALUE 'FASE1_RESPONDIO_CORREO';

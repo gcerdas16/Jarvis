@@ -5,12 +5,13 @@ import { api, MANUAL_STATUSES, MANUAL_STATUS_LABELS, ManualStatus } from "../../
 const AUTO_STATUSES = ["NEW", "CONTACTED", "FOLLOW_UP_1", "FOLLOW_UP_2", "FOLLOW_UP_3", "RESPONDED", "BOUNCED", "UNSUBSCRIBED"];
 
 const MANUAL_DOT_COLORS: Record<ManualStatus, string> = {
-  REUNION_AGENDADA:  "bg-green-500",
-  REUNION_REALIZADA: "bg-emerald-600",
-  PROPUESTA_ENVIADA: "bg-blue-500",
-  CLIENTE:           "bg-purple-500",
-  NO_INTERESADO:     "bg-red-500",
-  REVISITAR:         "bg-orange-500",
+  REUNION_AGENDADA:       "bg-green-500",
+  REUNION_REALIZADA:      "bg-emerald-600",
+  PROPUESTA_ENVIADA:      "bg-blue-500",
+  CLIENTE:                "bg-purple-500",
+  NO_INTERESADO:          "bg-red-500",
+  REVISITAR:              "bg-orange-500",
+  FASE1_RESPONDIO_CORREO: "bg-teal-500",
 };
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
@@ -27,7 +28,8 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   PROPUESTA_ENVIADA: "bg-blue-50 text-blue-700 border-blue-200",
   CLIENTE:           "bg-purple-50 text-purple-700 border-purple-200",
   NO_INTERESADO:     "bg-red-50 text-red-700 border-red-200",
-  REVISITAR:         "bg-orange-50 text-orange-700 border-orange-200",
+  REVISITAR:              "bg-orange-50 text-orange-700 border-orange-200",
+  FASE1_RESPONDIO_CORREO: "bg-teal-50 text-teal-700 border-teal-200",
 };
 
 function statusLabel(status: string): string {
